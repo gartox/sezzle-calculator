@@ -1,5 +1,9 @@
 import { useId, useState, type FormEvent } from 'react'
-import { ApiError, OPERATIONS, UNARY_OPERATIONS, calculate, type Operation } from '../api/client'
+import { UNARY_OPERATIONS, type Operation } from '../api/client'
+import CalculationResult from './CalculationResult'
+import NumberField from './NumberField'
+import OperationSelect from './OperationSelect'
+import { useCalculation } from './useCalculation'
 import { validateNumber } from './validateNumber'
 
 interface FieldErrors {
@@ -12,9 +16,7 @@ function Calculator() {
   const [a, setA] = useState('')
   const [b, setB] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
-  const [result, setResult] = useState<number | null>(null)
-  const [apiError, setApiError] = useState<{ message: string; requestId?: string } | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const { result, error, isLoading, run, reset } = useCalculation()
 
   const id = useId()
   const isUnary = UNARY_OPERATIONS.has(operation)
@@ -26,113 +28,43 @@ function Calculator() {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setResult(null)
-    setApiError(null)
-
-    const errors: FieldErrors = { a: validateNumber(a) }
-    if (!isUnary) {
-      errors.b = validateNumber(b)
-    }
+    const errors: FieldErrors = { a: validateNumber(a), b: isUnary ? undefined : validateNumber(b) }
     setFieldErrors(errors)
     if (errors.a || errors.b) {
+      reset()
       return
     }
-
-    setIsLoading(true)
-    try {
-      const value = await calculate(operation, Number(a), isUnary ? undefined : Number(b))
-      setResult(value)
-    } catch (error) {
-      setApiError(
-        error instanceof ApiError
-          ? { message: error.message, requestId: error.requestId }
-          : { message: 'Something went wrong. Please try again.' },
-      )
-    } finally {
-      setIsLoading(false)
-    }
+    void run(operation, Number(a), isUnary ? undefined : Number(b))
   }
 
   return (
     <form className="calculator" onSubmit={handleSubmit} noValidate>
-      <div className="field">
-        <label htmlFor={`${id}-operation`}>Operation</label>
-        <select
-          id={`${id}-operation`}
-          value={operation}
-          onChange={(event) => handleOperationChange(event.target.value as Operation)}
-        >
-          {OPERATIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <OperationSelect id={`${id}-operation`} value={operation} onChange={handleOperationChange} />
 
-      <div className="field">
-        <label htmlFor={`${id}-a`}>Number a</label>
-        <input
-          id={`${id}-a`}
-          type="number"
-          inputMode="decimal"
-          step="any"
-          value={a}
-          onChange={(event) => setA(event.target.value)}
-          aria-invalid={fieldErrors.a ? true : undefined}
-          aria-describedby={fieldErrors.a ? `${id}-a-error` : undefined}
-        />
-        {fieldErrors.a && (
-          <p className="field-error" id={`${id}-a-error`}>
-            {fieldErrors.a}
-          </p>
-        )}
-      </div>
-
+      <NumberField
+        id={`${id}-a`}
+        label="Number a"
+        value={a}
+        onChange={setA}
+        error={fieldErrors.a}
+      />
       {!isUnary && (
-        <div className="field">
-          <label htmlFor={`${id}-b`}>Number b</label>
-          <input
-            id={`${id}-b`}
-            type="number"
-            inputMode="decimal"
-            step="any"
-            value={b}
-            onChange={(event) => setB(event.target.value)}
-            aria-invalid={fieldErrors.b ? true : undefined}
-            aria-describedby={fieldErrors.b ? `${id}-b-error` : undefined}
-          />
-          {fieldErrors.b && (
-            <p className="field-error" id={`${id}-b-error`}>
-              {fieldErrors.b}
-            </p>
-          )}
-        </div>
+        <NumberField
+          id={`${id}-b`}
+          label="Number b"
+          value={b}
+          onChange={setB}
+          error={fieldErrors.b}
+        />
       )}
 
       <button type="submit" disabled={isLoading}>
         {isLoading ? 'Calculating…' : 'Calculate'}
       </button>
 
-      <output className="result" aria-live="polite">
-        {result !== null && (
-          <>
-            <span className="result-label">Result</span>
-            <span className="result-value">{String(result)}</span>
-          </>
-        )}
-      </output>
-
-      {apiError && (
-        <p className="api-error" role="alert">
-          {apiError.message}
-          {apiError.requestId && (
-            <small className="request-id">Request ID: {apiError.requestId}</small>
-          )}
-        </p>
-      )}
+      <CalculationResult result={result} error={error} />
     </form>
   )
 }
