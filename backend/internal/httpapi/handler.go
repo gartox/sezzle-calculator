@@ -56,6 +56,7 @@ func NewHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/calculate", handleCalculate)
 	mux.HandleFunc("/api/v1/health", handleHealth)
+	mux.HandleFunc("/api/v1/openapi.yaml", handleOpenAPI)
 	mux.HandleFunc("/api/", handleNotFound)
 	return mux
 }

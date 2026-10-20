@@ -150,6 +150,25 @@ func TestHealthRejectsOtherMethods(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDocument(t *testing.T) {
+	rec := do(t, http.MethodGet, "/api/v1/openapi.yaml", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/yaml" {
+		t.Fatalf("Content-Type = %q, want application/yaml", got)
+	}
+	if !strings.HasPrefix(rec.Body.String(), "openapi: 3.1") {
+		t.Fatalf("body does not start with an OpenAPI 3.1 header: %.40q", rec.Body.String())
+	}
+
+	rec = do(t, http.MethodPost, "/api/v1/openapi.yaml", "")
+	if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != http.MethodGet {
+		t.Fatalf("POST: status = %d, Allow = %q; want 405 and GET", rec.Code, rec.Header().Get("Allow"))
+	}
+	assertJSONContentType(t, rec)
+}
+
 func TestMethodNotAllowedSetsAllowHeader(t *testing.T) {
 	rec := do(t, http.MethodGet, calculatePath, "")
 	if got := rec.Header().Get("Allow"); got != http.MethodPost {

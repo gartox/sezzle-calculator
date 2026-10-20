@@ -1,0 +1,250 @@
+openapi: 3.1.0
+info:
+  title: Calculator API
+  version: 1.0.0
+  description: |
+    One endpoint performs every arithmetic operation. Every error, including
+    404 and 405, uses the same envelope with a stable `code` for clients and
+    a human-readable `message`.
+
+    Operands and results are IEEE 754 doubles; results are rounded to 12
+    significant digits so that `0.1 + 0.2` is `0.3`.
+servers:
+  - url: /
+    description: Same origin as the frontend.
+
+paths:
+  /api/v1/calculate:
+    post:
+      operationId: calculate
+      summary: Perform one arithmetic operation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculateRequest'
+            examples:
+              add:
+                summary: Addition
+                value: { operation: add, a: 2, b: 3 }
+              sqrt:
+                summary: Square root uses only a
+                value: { operation: sqrt, a: 16 }
+              percent:
+                summary: 15 percent of 200
+                value: { operation: percent, a: 15, b: 200 }
+      responses:
+        '200':
+          description: The operation succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculateResponse'
+              examples:
+                add:
+                  value: { result: 5 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /api/v1/health:
+    get:
+      operationId: health
+      summary: Liveness check used by Docker and Compose
+      responses:
+        '200':
+          description: The server is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                ok:
+                  value: { status: ok }
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+
+  /api/v1/openapi.yaml:
+    get:
+      operationId: openapi
+      summary: This document
+      responses:
+        '200':
+          description: The OpenAPI document that the binary was built with.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+
+components:
+  schemas:
+    Operation:
+      type: string
+      description: The arithmetic operation to perform.
+      enum:
+        - add
+        - subtract
+        - multiply
+        - divide
+        - power
+        - sqrt
+        - percent
+
+    CalculateRequest:
+      type: object
+      required: [operation, a]
+      properties:
+        operation:
+          $ref: '#/components/schemas/Operation'
+        a:
+          type: number
+          description: First operand. For `sqrt`, the number to take the root of.
+        b:
+          type: number
+          description: >-
+            Second operand. Required for every operation except `sqrt`, which
+            ignores it. `power` raises `a` to `b`; `percent` returns `a`
+            percent of `b`.
+      description: >-
+        Operands must be JSON numbers. A missing `a`, or a missing `b` for a
+        two-operand operation, is `INVALID_OPERAND`; a wrong type is
+        `INVALID_JSON`. Unknown fields are ignored.
+
+    CalculateResponse:
+      type: object
+      required: [result]
+      properties:
+        result:
+          type: number
+          description: The result rounded to 12 significant digits.
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+
+    ErrorCode:
+      type: string
+      description: Stable machine-readable reason for a failed request.
+      enum:
+        - INVALID_JSON
+        - INVALID_OPERATION
+        - INVALID_OPERAND
+        - DIVISION_BY_ZERO
+        - NEGATIVE_SQRT
+        - RESULT_OVERFLOW
+        - METHOD_NOT_ALLOWED
+        - NOT_FOUND
+
+    ErrorDetail:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: Human-readable explanation. Never contains internals.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+
+  responses:
+    BadRequest:
+      description: >-
+        The request could not be understood. Bodies over 1 MiB are rejected
+        with `INVALID_JSON` as well; the API does not use 413.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidJson:
+              summary: Malformed body, wrong type, empty body or trailing data
+              value:
+                error:
+                  code: INVALID_JSON
+                  message: Request body must be a JSON object with a string "operation" and numeric "a" and "b".
+            invalidOperation:
+              summary: Unknown operation
+              value:
+                error:
+                  code: INVALID_OPERATION
+                  message: 'Unknown operation "modulo". Supported operations: add, subtract, multiply, divide, power, sqrt, percent.'
+            invalidOperand:
+              summary: Missing operand
+              value:
+                error:
+                  code: INVALID_OPERAND
+                  message: Operand "b" is required for "add".
+
+    NotFound:
+      description: No such route under `/api/`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                error:
+                  code: NOT_FOUND
+                  message: No such API route.
+
+    MethodNotAllowed:
+      description: The route exists but not for this method.
+      headers:
+        Allow:
+          description: The method the route accepts.
+          schema:
+            type: string
+            example: POST
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            methodNotAllowed:
+              value:
+                error:
+                  code: METHOD_NOT_ALLOWED
+                  message: Use POST to calculate.
+
+    UnprocessableEntity:
+      description: The request was well formed but the operation cannot be performed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            divisionByZero:
+              value:
+                error:
+                  code: DIVISION_BY_ZERO
+                  message: Cannot divide by zero.
+            negativeSqrt:
+              value:
+                error:
+                  code: NEGATIVE_SQRT
+                  message: Cannot take the square root of a negative number.
+            resultOverflow:
+              summary: Result is infinite or not a number
+              value:
+                error:
+                  code: RESULT_OVERFLOW
+                  message: The result is not a finite number.
