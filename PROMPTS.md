@@ -421,6 +421,75 @@ Small commits on main with clear English messages. No AI markers anywhere: the l
 
 Result: the probes and a cold read found 21 items; 15 were fixed in small commits and 6 were kept with a reason. Fixed: a missing hashed asset fell back to `index.html` with a one-year immutable cache, and `/assets/` listed its files (both now 404, not cached); repeated JSON keys silently took the last value and keys matched case-insensitively (now exact keys, duplicates rejected); any `Content-Type` was accepted (now `415 UNSUPPORTED_MEDIA_TYPE`); a `null` body and a missing operation had misleading errors; negative zero leaked as `-0`; HEAD on the health check was 405; the e2e script could test a stale bundle; the Go image tag floated while `go.mod` needs 1.26.10; the README described pattern routing the code does not use and stated Go 1.26 instead of 1.26.10. Added tests for concurrent rate limiting under `-race` and for the alert shown for every error code. Kept by design: exact lowercase operation names, 12-significant-digit rounding of large integers, the mux's `/api` redirect, the indentation-based contract scan, 405 on OPTIONS, and results that arrive after an edit. `Calculator` was split into `NumberField`, `OperationSelect`, `CalculationResult` and a `useCalculation` hook (longest frontend function now 57 lines). The README gained a Scope section. A clean clone followed the README twice on Node 24.21.0 and Go 1.26.10: Compose healthy, `docker build` and `docker run`, `make run`, the hot-reload pair through the Vite proxy, 8 of 8 curl examples byte for byte, `make test`, `coverage`, `e2e` (15 passed), `lint`, `format` and `format-check` with no changes left behind, and clean `npm audit`, `govulncheck` and Trivy. The first run found one wrong test count in the README, fixed before the second.
 
+## 11. Product UI with atomic design and Storybook (phase A)
+
+Tool: Claude Code.
+
+```text
+Prompt 11. This replaces the stopped prompt 11, which was never applied. Append this whole message verbatim to PROMPTS.md as prompt 11 and keep the "What I did without AI" section last in the file.
+
+Jesús tested the app by hand: the form with two inputs and a select does not feel like a calculator. We are rebuilding the UI as a product, with atomic design and Storybook. The API contract does not change: every arithmetic result still comes from POST /api/v1/calculate, chaining is several calls, sqrt sends only a, percent stays "a percent of b", status comes from GET /api/v1/health, errors carry requestId.
+
+This prompt has two phases with a review gate. Do phase A only, then stop and report. Phase B starts only when I send the go-ahead.
+
+## Design research and decisions (write this into docs/design.md in your own words, as the design rationale)
+
+References and what we take from each:
+- iOS Calculator: 4-column keypad, equals at bottom right, the active operator stays highlighted, the value shrinks to fit. We follow the standard layout to reuse users' muscle memory.
+- Google Calculator: the expression line stays visible above the result, backspace sits next to equals, history is one tap away.
+- Windows Calculator: full keyboard parity, history beside the keypad on wide screens.
+- Fintech products: calm neutrals, a single accent color, tabular numbers, clear states, no decorative gradients.
+
+UX principles and how each is applied:
+- Recognition over recall: the expression line always shows what was typed, with real symbols ("2 + 3 ×", "15 % of 200").
+- Visibility of system status: a Ready or Offline pill backed by the health endpoint; a busy state on the equals key that appears only if a response takes longer than 300 ms, to avoid flicker.
+- Error prevention: the keypad blocks a second dot and entries longer than 15 digits; equals looks inactive when there is nothing to calculate.
+- Error recovery: an error replaces the result with a plain explanation and a small "Ref" with the request ID, keeps the expression visible, and any key recovers.
+- Fitts's law: keys at least 56 px on phones, equals the most prominent, zero double width.
+- Platform conventions: layout below, operator column in accent, active operator marked with aria-pressed and a visible outline, not color alone.
+- Accessibility: WCAG AA contrast in both themes, visible focus, accessible names on every key, results announced through aria-live="polite", prefers-reduced-motion respected.
+- Keyboard parity: 0 to 9 and . for input, + - * / ^ % for operators, Enter or = for equals, Backspace, Escape for all clear, r for square root, n for sign; a key typed on the keyboard briefly shows its pressed state on screen.
+
+Layout, phone first:
+- Header: product name "Calculator" and the status pill.
+- Display: expression line (small, muted) above the value (large, right aligned, tabular, grouped with thousands separators for display only, shrinking to fit and switching to exponent notation beyond what fits). Tapping or clicking the value copies it, with a short "Copied" confirmation announced politely.
+- Function row with secondary chips: √x and xʸ, plus a History toggle.
+- Keypad, 4 columns:
+  AC, ±, %, ÷
+  7, 8, 9, ×
+  4, 5, 6, −
+  1, 2, 3, +
+  0 (double width), ., ⌫ ... rebalance as needed so that equals sits at the bottom right and backspace sits next to it; if the grid needs a fifth row, use: 0, ., ⌫, = with zero single width. Choose the version that keeps 4 equal columns and document the choice.
+- History: last 10 results, client side only (sessionStorage wrapped in try/catch, works without it). Each entry shows expression and result and reuses the result as the current value when clicked. On screens 900 px and wider it sits beside the calculator; on phones it opens as a sheet from the toggle.
+- Evaluation is left to right like a basic calculator: 2 + 3 × 4 = 20, with the intermediate 5 shown after pressing ×.
+
+Visual identity: our own, calm and fintech-like. Do not imitate Sezzle's brand or any other product's colors or wording. Neutral graphite and ivory surfaces, one accent for operators and equals, system font stack, tabular numbers, soft radius, subtle press feedback. Light and dark themes from prefers-color-scheme, both validated for contrast.
+
+## Atomic design structure
+
+src/design/tokens.css with CSS custom properties for color (light and dark), spacing, radius, typography, shadow and motion. Components live under src/components/atoms, molecules, organisms, templates and pages, each with its .tsx, a CSS Module, a .stories.tsx and tests where there is logic:
+- Atoms: Key (variants digit, operator, function, utility, equals; states default, hover, active operator, pressed, disabled, busy), StatusDot, Icon (inline SVG for backspace and history), Spinner, VisuallyHidden.
+- Molecules: StatusPill, ExpressionLine, DisplayValue (formatting, shrink to fit, copy), ErrorNotice (message and Ref), HistoryItem.
+- Organisms: CalculatorHeader, Display, Keypad (grid, keyboard highlight), HistoryPanel.
+- Templates: CalculatorTemplate (responsive layout, history beside or as a sheet).
+- Pages: CalculatorPage, which wires the keypad state and the API. It receives the API client and the health check as props with the real ones as defaults, so stories and tests inject fakes without network mocking libraries.
+- Keypad state as a pure reducer in src/calculator/keypad.ts, no React and no network.
+
+## Storybook
+
+Storybook 10.6.3 with @storybook/react-vite, addon-docs (autodocs), addon-a11y with axe failing on violations, and addon-vitest so every story runs as a test in a real browser (Chromium through Playwright). A Foundations docs page shows the tokens: color swatches with contrast ratios, spacing scale, type scale, radius and motion. Every component has stories for each variant and state, in light and dark. Organisms and the page get play functions for interaction (typing a calculation, chaining, an error, keyboard only). Scripts: storybook, build-storybook, test-storybook. Makefile targets: storybook, storybook-build, storybook-test.
+
+## Phase A: build now, then stop
+
+1. docs/design.md with the research, principles, layout and identity decisions above, in your words.
+2. Storybook installed and configured as described, with the Foundations page.
+3. Tokens, all atoms and all molecules, each with stories in light and dark and a11y passing.
+4. Screenshots captured with Playwright from Storybook, saved under docs/design/: Foundations, the Key atom with all variants, and the molecules, each at 375 and 1024 px wide in light and dark.
+5. make lint, make format-check and the Storybook story tests pass. Nothing in the running app changes yet: the old form stays until phase B.
+
+Commit in small steps with clear English messages; no AI markers (the local hook rejects them); no remote, no push. Report the screenshot paths, the story count and the a11y results, then stop and wait for the phase B go-ahead.
+```
+
 ## What I did without AI
 
 To be written by the author.
