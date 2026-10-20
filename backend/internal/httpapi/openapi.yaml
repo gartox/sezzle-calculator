@@ -154,7 +154,9 @@ components:
       description: >-
         Operands must be JSON numbers. A missing `a`, or a missing `b` for a
         two-operand operation, is `INVALID_OPERAND`; a wrong type is
-        `INVALID_JSON`. Unknown fields are ignored.
+        `INVALID_JSON`. Keys and the operation name match exactly (lowercase,
+        no surrounding spaces). A key that appears twice is `INVALID_JSON`.
+        Unknown fields are ignored.
 
     CalculateResponse:
       type: object
@@ -229,6 +231,20 @@ components:
                 error:
                   code: INVALID_JSON
                   message: Request body must be a JSON object with a string "operation" and numeric "a" and "b".
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+            duplicateKey:
+              summary: A key appears twice
+              value:
+                error:
+                  code: INVALID_JSON
+                  message: Key "a" appears more than once in the request body.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+            missingOperation:
+              summary: No operation field
+              value:
+                error:
+                  code: INVALID_OPERATION
+                  message: 'Field "operation" is required. Supported operations: add, subtract, multiply, divide, power, sqrt, percent.'
                   requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
             invalidOperation:
               summary: Unknown operation

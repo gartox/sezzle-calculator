@@ -71,7 +71,19 @@ func TestCalculateErrors(t *testing.T) {
 		{name: "trailing data", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":2,"b":3} extra`, wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "number out of float64 range", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1e999,"b":3}`, wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "body too large", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":2,"b":3,"pad":"` + strings.Repeat("x", maxBodyBytes) + `"}`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "whitespace-only body", method: http.MethodPost, path: calculatePath, body: " \n\t ", wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "null body", method: http.MethodPost, path: calculatePath, body: `null`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "number body", method: http.MethodPost, path: calculatePath, body: `5`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "string body", method: http.MethodPost, path: calculatePath, body: `"add"`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "duplicate operand key", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1,"a":5,"b":1}`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "duplicate operation key", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","operation":"multiply","a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "unclosed object", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1,"b":2`, wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "unknown operation", method: http.MethodPost, path: calculatePath, body: `{"operation":"modulo","a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperation},
+		{name: "operation is case sensitive", method: http.MethodPost, path: calculatePath, body: `{"operation":"ADD","a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperation},
+		{name: "operation is not trimmed", method: http.MethodPost, path: calculatePath, body: `{"operation":" add ","a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperation},
+		{name: "null operation", method: http.MethodPost, path: calculatePath, body: `{"operation":null,"a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperation},
+		{name: "keys are case sensitive: OPERATION", method: http.MethodPost, path: calculatePath, body: `{"OPERATION":"add","a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperation},
+		{name: "keys are case sensitive: A", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","A":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperand},
 		{name: "missing operation", method: http.MethodPost, path: calculatePath, body: `{"a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperation},
 		{name: "missing a", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","b":3}`, wantStatus: 400, wantCode: CodeInvalidOperand},
 		{name: "missing b for add", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":2}`, wantStatus: 400, wantCode: CodeInvalidOperand},
@@ -171,6 +183,36 @@ func TestOpenAPIDocument(t *testing.T) {
 		t.Fatalf("POST: status = %d, Allow = %q; want 405 and GET", rec.Code, rec.Header().Get("Allow"))
 	}
 	assertJSONContentType(t, rec)
+}
+
+func TestErrorMessages(t *testing.T) {
+	tests := []struct {
+		name, body, want string
+	}{
+		{name: "duplicate key names the key", body: `{"operation":"add","a":1,"a":5,"b":1}`, want: `Key "a" appears more than once in the request body.`},
+		{name: "missing operation says it is required", body: `{"a":1,"b":2}`, want: `Field "operation" is required. Supported operations: add, subtract, multiply, divide, power, sqrt, percent.`},
+		{name: "unknown operation echoes it", body: `{"operation":"ADD","a":1,"b":2}`, want: `Unknown operation "ADD". Supported operations: add, subtract, multiply, divide, power, sqrt, percent.`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := do(t, http.MethodPost, calculatePath, tt.body)
+			var resp struct {
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			decodeBody(t, rec, &resp)
+			if resp.Error.Message != tt.want {
+				t.Fatalf("message = %q, want %q", resp.Error.Message, tt.want)
+			}
+		})
+	}
+}
+
+func TestDuplicateKeyErrorText(t *testing.T) {
+	if got := duplicateKeyError("a").Error(); got != `duplicate key "a"` {
+		t.Fatalf("Error() = %q", got)
+	}
 }
 
 func TestMethodNotAllowedSetsAllowHeader(t *testing.T) {

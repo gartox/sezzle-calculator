@@ -74,10 +74,20 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeRequest(w, r)
 	if err != nil {
-		writeError(w, r, http.StatusBadRequest, CodeInvalidJSON, "Request body must be a JSON object with a string \"operation\" and numeric \"a\" and \"b\".")
+		message := "Request body must be a JSON object with a string \"operation\" and numeric \"a\" and \"b\"."
+		var dup duplicateKeyError
+		if errors.As(err, &dup) {
+			message = fmt.Sprintf("Key %q appears more than once in the request body.", string(dup))
+		}
+		writeError(w, r, http.StatusBadRequest, CodeInvalidJSON, message)
 		return
 	}
 
+	if req.Operation == "" {
+		writeError(w, r, http.StatusBadRequest, CodeInvalidOperation,
+			fmt.Sprintf("Field \"operation\" is required. Supported operations: %s.", supportedOperations()))
+		return
+	}
 	op, err := calculator.ParseOperation(req.Operation)
 	if err != nil {
 		writeError(w, r, http.StatusBadRequest, CodeInvalidOperation,
@@ -121,20 +131,79 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	writeError(w, r, http.StatusNotFound, CodeNotFound, "No such API route.")
 }
 
+// duplicateKeyError reports a key that appears twice in the request object.
+type duplicateKeyError string
+
+func (e duplicateKeyError) Error() string { return fmt.Sprintf("duplicate key %q", string(e)) }
+
+var errNotObject = errors.New("request body is not a JSON object")
+
 // decodeRequest parses exactly one JSON object from the body. Anything else
-// (syntax errors, wrong types, an empty body, trailing data, an oversized
-// body) is reported as an error.
+// (syntax errors, wrong types, an empty body, a non-object such as null,
+// trailing data, an oversized body, a repeated key) is reported as an error.
+//
+// Keys match exactly. encoding/json would otherwise accept "A" for "a" and
+// let a repeated key silently overwrite the first one, so a proxy that reads
+// the first "operation" and this server that reads the last would disagree
+// about what the request asks for. Unknown keys are ignored.
 func decodeRequest(w http.ResponseWriter, r *http.Request) (calculateRequest, error) {
 	var req calculateRequest
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
+
+	fields, err := decodeObject(dec)
+	if err != nil {
 		return req, err
 	}
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return req, errors.New("unexpected data after JSON object")
 	}
+
+	targets := map[string]any{"operation": &req.Operation, "a": &req.A, "b": &req.B}
+	for name, target := range targets {
+		raw, ok := fields[name]
+		if !ok {
+			continue
+		}
+		if err := json.Unmarshal(raw, target); err != nil {
+			return req, fmt.Errorf("field %q: %w", name, err)
+		}
+	}
 	return req, nil
+}
+
+// decodeObject reads one JSON object and returns its members by exact key.
+func decodeObject(dec *json.Decoder) (map[string]json.RawMessage, error) {
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
+		return nil, errNotObject
+	}
+
+	fields := make(map[string]json.RawMessage)
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		// Inside an object, Token returns each key as a string or fails with
+		// a syntax error, so the assertion cannot fail.
+		key := tok.(string)
+		if _, seen := fields[key]; seen {
+			return nil, duplicateKeyError(key)
+		}
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil {
+			return nil, err
+		}
+		fields[key] = raw
+	}
+	if _, err := dec.Token(); err != nil { // the closing brace
+		return nil, err
+	}
+	return fields, nil
 }
 
 func mapCalculationError(err error) (status int, code, message string) {
