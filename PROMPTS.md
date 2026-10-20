@@ -391,3 +391,30 @@ Report the curl outputs, the contract test failure and revert, coverage per pack
 ```
 
 Result: eight commits, with one session break mid-prompt. The OpenAPI document lives at `backend/internal/httpapi/openapi.yaml` because `go:embed` cannot reach outside the package; it is the single copy, served at `/api/v1/openapi.yaml`, and the README points to it instead of a duplicate under `docs/`. A standard-library contract test compares its `ErrorCode` and `Operation` enums with the handler's `Code` constants (parsed with `go/ast`) and `calculator.Operations`; it caught the new `RATE_LIMITED` before the spec had it, and a scratch removal of `RESULT_OVERFLOW` failed it as expected before the revert. openapi-typescript 7.13 only declares TypeScript 5, so an npm `overrides` entry points it at the project's TypeScript 6; CI regenerates the types and fails on any diff. Request IDs, a JSON or text access log and a per-IP token bucket (`RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `TRUST_PROXY`) were added; with RPS 1 and burst 2, five quick requests gave 200, 200, then three 429s with `Retry-After: 1`. Verified on Node 24.21.0 and Go 1.26.10: `make lint`, `make format-check`, `make test` (httpapi 100%, server 47.3%, calculator 96.9%, healthcheck 57.1%, frontend 100%), `make e2e` (14 passed) and `docker build` (13.8 MB). Two small follow-ups came out of verification: the README log example now uses a captured line, and the shutdown timeout logs as `10s` instead of nanoseconds in JSON.
+
+## 10. Adversarial review, known fixes and final clean-clone verification
+
+Tool: Claude Code.
+
+```text
+Prompt 10. Jesús wants you to continue the work from where it stopped and take it to a submittable state. Append this whole message verbatim to PROMPTS.md as prompt 10. Work through all of it without waiting for another prompt.
+
+## 1. Adversarial review
+
+Act as the Sezzle senior engineer who has ten minutes and twenty other candidates. Read the repository cold, as if you had not written it, and list every finding in severity order: correctness bugs, untested edge cases, non-idiomatic Go or React, inconsistencies between README, OpenAPI, code and tests, anything that would make a reviewer frown. Probe at least: very large and very small magnitudes, negative zero, numbers in exponent notation, a JSON body with duplicate keys, extra unknown fields, operation in a different case ("ADD"), whitespace around the operation, a body with only whitespace, a Content-Type other than JSON, concurrent requests under the race detector with rate limiting on, and what the UI shows for each backend error code. Write the findings to your reply first, then fix every one that is a real defect. For each finding you decide not to fix, give one line of reason.
+
+## 2. Known items to fix
+
+- README prerequisites say Go 1.26 while go.mod requires 1.26.10; with an older 1.26 patch the build depends on downloading the toolchain. State the exact versions (Go 1.26.10 or newer, Node 24 or newer) in every place they appear: README, Makefile help if relevant, CI, Dockerfile comments.
+- Calculator.tsx is one 124-line component. Extract a small NumberField component for the labeled input with its error, so no function in the frontend is longer than about 60 lines. Keep the tests passing and add one for NumberField if it carries logic.
+- Scope: the assignment asked for 2 to 4 hours. Add a short "Scope" section near the top of the README that separates what was required (the calculator, tests with coverage, README, prompts, optional Dockerfile) from what was added beyond it (end-to-end tests, security hardening and scanning, OpenAPI with generated types, rate limiting, request IDs, CI and image publishing), with one line on why each extra was worth it for a payments company. Do not claim a time spent.
+- PROMPTS.md: add an empty section at the end titled "What I did without AI" containing only the line "To be written by the author." Do not write its content; Jesús writes it.
+
+## 3. Final verification
+
+Clone the repository into a new empty folder outside it and, on Node 24 and Go 1.26.10, follow the README literally from top to bottom: every quick start option, every curl example compared byte for byte, make lint, make format-check, make test, make e2e, docker compose up with the health check reaching healthy. Then run the three security scans. Paste the real output of each step. If anything fails, fix it in the original repository, commit, and repeat the clean-clone run until it passes from start to finish.
+
+## Rules
+
+Small commits on main with clear English messages. No AI markers anywhere: the local commit-msg hook rejects them. Do not create a remote and do not push; that needs Jesús's explicit yes. When done, report: the findings list with what you fixed and what you did not, the clean-clone results, coverage per package, the final commit count, and the commit list for this prompt. Then stop.
+```
