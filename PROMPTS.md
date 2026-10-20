@@ -267,3 +267,44 @@ Report which commands you ran and anything you had to correct, then stop and wai
 ```
 
 Result: README with the nine sections and a self-documenting Makefile (`make` prints every target with its comment). Every README command was run from the repository root in order: `docker compose up --build`, `docker build` and `docker run`, `make run` from a wiped tree (`npm ci`, bundle and binary rebuilt), the two hot-reload terminals with a request through the Vite proxy, the eight curl examples compared byte for byte with the responses shown, `make test`, `make coverage`, `make e2e-install`, `make e2e` and plain `make`. Two Makefile corrections came out of it: frontend targets now install `node_modules` when missing so `make run` works on a clean machine, and `frontend/coverage.txt` keeps only the coverage table so it no longer changes with timestamps on every run.
+
+## 7. Security hardening, vulnerability scanning and Node 24 minimum
+
+Tool: Claude Code.
+
+```text
+Prompt 7. README reviewed and accepted. Now security hardening, dependency vulnerability scanning and a Node 24 minimum. Append this whole message verbatim to PROMPTS.md as prompt 7. A prompt 8 follows in a separate message: finish and commit everything here first, then start it.
+
+## Node 24 minimum
+
+- Add "engines": {"node": ">=24"} to frontend/package.json and e2e/package.json, and a .nvmrc at the repository root with 24.
+- Dockerfile frontend build stage on node:24-alpine (the LTS) instead of 26.
+- CI frontend job as a matrix on Node 24 and 26; e2e job on 24. Keep the cache keys working with the matrix.
+- README prerequisites say Node 24 or newer.
+
+## Dependency and image vulnerability scanning
+
+- CI job security with three steps that fail on high or critical findings: npm audit --audit-level=high in frontend and in e2e (after npm ci); govulncheck ./... in backend (go run golang.org/x/vuln/cmd/govulncheck@latest or actions/setup-go plus go install); Trivy on the built image with aquasecurity/trivy-action, severity HIGH,CRITICAL, ignore-unfixed true, exit-code 1.
+- .github/dependabot.yml with weekly updates for npm in /frontend and /e2e, gomod in /backend, docker in /, and github-actions in /. Group minor and patch updates so the PR noise stays low.
+- Run the same three scans locally now. For Trivy, if it is not installed, run it through its Docker image against the local image (docker run with the Docker socket mounted) rather than installing anything on this machine. Paste the real output in your report. If anything is found, fix it when a non-breaking update exists; otherwise document it in the README security section with the reason.
+
+## Security headers and caching for the served UI
+
+In cmd/server, add a small middleware around the whole mux that sets on every response: X-Content-Type-Options nosniff, X-Frame-Options DENY, Referrer-Policy no-referrer, Permissions-Policy that disables camera, microphone and geolocation, and a Content-Security-Policy that allows only self for default-src, script-src, style-src, connect-src and img-src (plus data: for images), with frame-ancestors none, base-uri self and form-action self. Confirm the Vite build has no inline scripts or styles that the policy would block; if it does, adjust the build, not the policy. Cache-Control: no-cache for index.html and the API, and public, max-age=31536000, immutable for the hashed files under /assets/.
+
+Put the middleware in its own file in cmd/server with unit tests using httptest, which also gives cmd/server real coverage. Add one Playwright API test asserting the nosniff and CSP headers on GET /. Update the coverage.txt files and the coverage table in the README.
+
+## Review of what exists
+
+Check and report, fixing where needed: no secrets or environment files tracked; the static file server cannot be used to read outside STATIC_DIR (path traversal); request body limit and server timeouts in place; the error messages never echo internals; the container runs as nonroot and the image has no shell. Add a Security section to the README listing what is covered and what is deliberately out of scope (authentication, rate limiting, TLS termination, which belong to the deployment in front of the service).
+
+## Verification before you report
+
+make test, make e2e and docker build must pass on Node 24: switch to Node 24 with nvm for the frontend and e2e steps (nvm use 24, or install it with nvm if missing) and show the versions used. The three scans run locally with their output.
+
+Commit in steps: Node 24 engines and images, security headers middleware with tests, scanning job and Dependabot, README security section. English messages, no mention of tooling. Do not push.
+
+Report the scan output, the header values observed with curl -I on / and on an asset, and the commit list. Then continue with prompt 8.
+```
+
+Result: five commits. Node 24 is the minimum (`engines`, `.nvmrc`, `node:24-alpine`, CI matrix on 24 and 26). A `secureHeaders` middleware in `cmd/server` sets the five headers and the cache policy on every response, with httptest coverage that also exercises the static handler against `..` traversal, lifting `cmd/server` from 0% to 46.3% and the backend total to 77.5%. Scans: `npm audit` found 0 vulnerabilities in both packages; `govulncheck` reported 15 standard library vulnerabilities in Go 1.26.5 (all fixed by 1.26.9), so `go.mod` now pins 1.26.10 and the scan reports none; Trivy on the image found 0 in the Debian layer and in both Go binaries. A `security` CI job and Dependabot were added. Verified on Node 24.21.0: `make test`, `make e2e` (10 passed) and `docker build`.
