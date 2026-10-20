@@ -12,7 +12,10 @@ import (
 	"github.com/gartox/sezzle-calculator/backend/internal/calculator"
 )
 
-const calculatePath = "/api/v1/calculate"
+const (
+	calculatePath = "/api/v1/calculate"
+	healthPath    = "/api/v1/health"
+)
 
 func TestCalculateSuccess(t *testing.T) {
 	tests := []struct {
@@ -103,6 +106,45 @@ func TestCalculateErrors(t *testing.T) {
 			}
 			if resp.Error.Message == "" {
 				t.Fatalf("error message is empty (body %s)", rec.Body)
+			}
+		})
+	}
+}
+
+func TestHealth(t *testing.T) {
+	rec := do(t, http.MethodGet, healthPath, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s; want 200", rec.Code, rec.Body)
+	}
+	assertJSONContentType(t, rec)
+	var resp struct {
+		Status string `json:"status"`
+	}
+	decodeBody(t, rec, &resp)
+	if resp.Status != "ok" {
+		t.Fatalf("status field = %q, want %q (body %s)", resp.Status, "ok", rec.Body)
+	}
+}
+
+func TestHealthRejectsOtherMethods(t *testing.T) {
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			rec := do(t, method, healthPath, "")
+			if rec.Code != http.StatusMethodNotAllowed {
+				t.Fatalf("status = %d, body = %s; want 405", rec.Code, rec.Body)
+			}
+			assertJSONContentType(t, rec)
+			if got := rec.Header().Get("Allow"); got != http.MethodGet {
+				t.Fatalf("Allow header = %q, want %q", got, http.MethodGet)
+			}
+			var resp struct {
+				Error struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			decodeBody(t, rec, &resp)
+			if resp.Error.Code != CodeMethodNotAllowed {
+				t.Fatalf("error code = %q, want %q", resp.Error.Code, CodeMethodNotAllowed)
 			}
 		})
 	}

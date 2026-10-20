@@ -37,6 +37,10 @@ type calculateResponse struct {
 	Result float64 `json:"result"`
 }
 
+type healthResponse struct {
+	Status string `json:"status"`
+}
+
 type errorResponse struct {
 	Error errorDetail `json:"error"`
 }
@@ -51,6 +55,7 @@ type errorDetail struct {
 func NewHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/calculate", handleCalculate)
+	mux.HandleFunc("/api/v1/health", handleHealth)
 	mux.HandleFunc("/api/", handleNotFound)
 	return mux
 }
@@ -95,6 +100,16 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, calculateResponse{Result: result})
+}
+
+// handleHealth answers liveness probes from Docker, Compose and load balancers.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to check health.")
+		return
+	}
+	writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
 }
 
 func handleNotFound(w http.ResponseWriter, r *http.Request) {
