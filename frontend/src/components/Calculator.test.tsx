@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, OPERATIONS, calculate } from '../api/client'
+import { ApiError, OPERATIONS, calculate, type ErrorCode } from '../api/client'
 import Calculator from './Calculator'
 import { validateNumber } from './validateNumber'
 
@@ -208,4 +208,51 @@ describe('Calculator', () => {
     expect(await screen.findByText('7')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+})
+
+// Keyed by every ErrorCode, so a code added to the OpenAPI document without a
+// case here fails the typecheck. Each entry is the status and message the
+// backend (or the client, for the last two) produces.
+const ERROR_CASES: Record<ErrorCode, [status: number, message: string]> = {
+  INVALID_JSON: [
+    400,
+    'Request body must be a JSON object with a string "operation" and numeric "a" and "b".',
+  ],
+  INVALID_OPERATION: [400, 'Unknown operation "modulo".'],
+  INVALID_OPERAND: [400, 'Operand "b" is required for "add".'],
+  DIVISION_BY_ZERO: [422, 'Cannot divide by zero.'],
+  NEGATIVE_SQRT: [422, 'Cannot take the square root of a negative number.'],
+  RESULT_OVERFLOW: [422, 'The result is not a finite number.'],
+  METHOD_NOT_ALLOWED: [405, 'Use POST to calculate.'],
+  NOT_FOUND: [404, 'No such API route.'],
+  RATE_LIMITED: [429, 'Too many requests. Try again in 1 second.'],
+  UNSUPPORTED_MEDIA_TYPE: [415, 'Content-Type must be application/json.'],
+  NETWORK_ERROR: [0, 'Could not reach the calculator service.'],
+  UNEXPECTED_RESPONSE: [502, 'The calculator service returned an unexpected response (HTTP 502).'],
+}
+
+describe('Calculator error display', () => {
+  it.each(Object.entries(ERROR_CASES))(
+    'shows the message for %s, with the request ID when the server sent one',
+    async (code, [status, message]) => {
+      const fromServer = status !== 0 && code !== 'UNEXPECTED_RESPONSE'
+      calculateMock.mockRejectedValueOnce(
+        new ApiError(code as ErrorCode, message, status, fromServer ? 'req-9' : undefined),
+      )
+      const { user, inputA, inputB, button } = setup()
+
+      await user.type(inputA(), '1')
+      await user.type(inputB(), '2')
+      await user.click(button())
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(message)
+      if (fromServer) {
+        expect(within(alert).getByText('Request ID: req-9')).toBeInTheDocument()
+      } else {
+        expect(alert).not.toHaveTextContent(/request id/i)
+      }
+      expect(screen.queryByText('Result')).not.toBeInTheDocument()
+    },
+  )
 })
