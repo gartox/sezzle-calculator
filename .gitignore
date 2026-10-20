@@ -1,8 +1,14 @@
 # Build output
 bin/
+frontend/dist/
 
-# Go coverage profile (the summary in backend/coverage.txt is committed)
+# Dependencies
+node_modules/
+
+# Coverage artifacts (the text summaries backend/coverage.txt and
+# frontend/coverage.txt are committed)
 backend/coverage.out
+frontend/coverage/
 
 # OS files
 .DS_Store

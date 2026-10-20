@@ -1,0 +1,34 @@
+
+> sezzle-calculator-frontend@0.0.0 test:coverage
+> vitest run --coverage
+
+
+ RUN  v5.0.5 /Users/ghost/Proyectos/sezzle-calculator/frontend
+      Coverage enabled with v8
+
+
+ Test Files  3 passed (3)
+      Tests  21 passed (21)
+   Start at  13:01:48
+   Duration  1.53s (environment 52%, tests 20%, setup 15%, transform 7%, import 4%, worker 2%)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |     100 |      100 |     100 |     100 |                   
+ src               |     100 |      100 |     100 |     100 |                   
+  App.tsx          |     100 |      100 |     100 |     100 |                   
+ src/api           |     100 |      100 |     100 |     100 |                   
+  client.ts        |     100 |      100 |     100 |     100 |                   
+ src/components    |     100 |      100 |     100 |     100 |                   
+  Calculator.tsx   |     100 |      100 |     100 |     100 |                   
+  ...dateNumber.ts |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+Statements   : 100% ( 67/67 )
+Branches     : 100% ( 53/53 )
+Functions    : 100% ( 13/13 )
+Lines        : 100% ( 66/66 )
+================================================================================
