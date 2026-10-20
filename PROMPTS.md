@@ -344,3 +344,50 @@ Report the commands run, the number of files Prettier changed, and the commit li
 ```
 
 Result: five commits. Prettier 3.9 with the shared `.prettierrc` reformatted 7 files (five frontend sources and two `tsconfig.json`), committed on their own; oxlint had nothing to say about them, so no rule was disabled. e2e got the same oxlint setup and a `lint` script; the Makefile gained `lint`, `format` and `format-check`, and the frontend and e2e CI jobs run lint and `format:check` before the tests. The `publish` job pushes `ghcr.io/gartox/sezzle-calculator` (`latest` and the commit SHA) only on pushes to `main` after the five other jobs, with the workflow token alone. Verified on Node 24.21.0: `make lint`, `make format-check`, `make test` and `make e2e` (10 passed). The publish job cannot run locally; actionlint 1.7.12 reports 0 errors on the workflow (the Docker image pull stalled, so it ran through `go run` instead).
+
+## 9. OpenAPI contract, rate limiting, request IDs and access log
+
+Tool: Claude Code.
+
+```text
+Prompt 9. Finish prompt 8 first (actionlint check, record it in PROMPTS.md, commit). Prompts 7 and 8 are verified on my side on a clean clone with Node 24: lint, format, tests, npm audit, govulncheck, headers and traversal all good. Then start this. Append this whole message verbatim to PROMPTS.md as prompt 9.
+
+## Contract as the source of truth: OpenAPI
+
+- Write docs/openapi.yaml (OpenAPI 3.1) describing POST /api/v1/calculate and GET /api/v1/health: request schema with the operation enum and a and b as numbers, b documented as required except for sqrt; success schema; the error envelope schema with the code enum (every code the handler can return, including RATE_LIMITED below); one named example per error response; the 400, 405, 404, 413 if applicable, 422 and 429 responses; X-Request-Id as a response header on every operation.
+- Serve it at GET /api/v1/openapi.yaml with Content-Type application/yaml, embedded in the binary with go:embed (move or copy the file so the embed path works without a build step, and keep exactly one source file; if it must live under backend/, make docs/openapi.yaml a short pointer in the README instead of a duplicate).
+- Go contract test in internal/httpapi: parse the spec with a minimal YAML-free approach (or a tiny dependency-free scan of the code enum in the YAML) and assert that the set of error codes in the spec equals the set of Code constants in handler.go, and that the operation enum equals calculator.Operations. A drift on either side must fail the test. Standard library only.
+- Frontend: generate src/api/schema.d.ts from the spec with openapi-typescript as a dev dependency, script generate:api. client.ts derives Operation and the error code type from the generated types instead of declaring them by hand. Commit the generated file. Add a CI step in the frontend job that runs generate:api and fails if git diff shows any change, so the spec and the client cannot drift.
+
+## Rate limiting
+
+- Middleware in its own file under internal/httpapi (or cmd/server if it fits better; justify in a comment) that limits POST /api/v1/calculate per client IP with a token bucket, standard library only. Defaults: 10 requests per second with a burst of 20, configurable with RATE_LIMIT_RPS and RATE_LIMIT_BURST; RATE_LIMIT_RPS=0 disables it.
+- Over the limit: 429 with code RATE_LIMITED in the same envelope and a Retry-After header in whole seconds.
+- Client IP from the connection's remote address. Only when TRUST_PROXY=true, take the first address of X-Forwarded-For. Document why it is off by default (spoofing).
+- Evict idle buckets so memory does not grow without bound (for example a sweep every minute that drops buckets idle for more than three minutes), with a stop function wired into graceful shutdown.
+- Unit tests with an injectable clock: burst allowed, request over the burst rejected with 429 and Retry-After, refill after time passes, separate IPs isolated, X-Forwarded-For ignored unless TRUST_PROXY, eviction of idle buckets, disabled when RPS is 0.
+- The health endpoint and static files are not rate limited.
+
+## Request ID and access log
+
+- Middleware that reads X-Request-Id from the request if it is a safe value (up to 64 characters of letters, digits, dash and underscore), otherwise generates a random 16-byte hex ID with crypto/rand, sets it on the response header and in the request context.
+- Access log with log/slog after each request: request ID, method, path, status, duration in milliseconds, bytes written, client IP. JSON handler when LOG_FORMAT=json, text otherwise. Never log request bodies.
+- Error responses include the request ID in the envelope as error.requestId so a user can report it. Update the OpenAPI schema, the frontend ApiError (requestId field) and the alert text to show it in small print.
+- Unit tests: ID propagated when valid, replaced when invalid or missing, present in the error envelope, log line has the fields (capture slog output).
+
+## Tests, docs and checks
+
+- Playwright API tests: X-Request-Id present on responses and echoed when sent; the error envelope carries requestId; GET /api/v1/openapi.yaml returns 200 and YAML. Do not test the 429 end to end; set RATE_LIMIT_RPS=0 in the Playwright webServer env so the suite never trips it, and say so in a comment.
+- docs/api.http: add the openapi.yaml request and a request with a custom X-Request-Id.
+- README: API section links the spec and says the frontend types are generated from it; a Rate limiting subsection with the defaults and env vars; Observability subsection with request ID and log format; update the error code table with RATE_LIMITED 429; Configuration table with every environment variable the server reads (PORT, STATIC_DIR, RATE_LIMIT_RPS, RATE_LIMIT_BURST, TRUST_PROXY, LOG_FORMAT) and its default; update the coverage table.
+
+## Verification before you report
+
+make lint, make format-check, make test, make e2e and docker build pass. Show with curl: X-Request-Id on a response, requestId in an error body, the openapi endpoint, and a burst that hits 429 with Retry-After (run the binary with RATE_LIMIT_RPS=1 RATE_LIMIT_BURST=2 and send five quick requests). Show npm run generate:api followed by an empty git diff. Break the contract on purpose once (remove a code from the spec in a scratch change), show the Go contract test failing, then revert.
+
+Commit in steps: OpenAPI spec and served endpoint with contract test, generated client types and CI drift check, request ID and access log, rate limiting, end-to-end and api.http updates, README. English messages, no mention of tooling. Do not push.
+
+Report the curl outputs, the contract test failure and revert, coverage per package and the commit list, then stop and wait for prompt 10.
+```
+
+Result: eight commits, with one session break mid-prompt. The OpenAPI document lives at `backend/internal/httpapi/openapi.yaml` because `go:embed` cannot reach outside the package; it is the single copy, served at `/api/v1/openapi.yaml`, and the README points to it instead of a duplicate under `docs/`. A standard-library contract test compares its `ErrorCode` and `Operation` enums with the handler's `Code` constants (parsed with `go/ast`) and `calculator.Operations`; it caught the new `RATE_LIMITED` before the spec had it, and a scratch removal of `RESULT_OVERFLOW` failed it as expected before the revert. openapi-typescript 7.13 only declares TypeScript 5, so an npm `overrides` entry points it at the project's TypeScript 6; CI regenerates the types and fails on any diff. Request IDs, a JSON or text access log and a per-IP token bucket (`RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `TRUST_PROXY`) were added; with RPS 1 and burst 2, five quick requests gave 200, 200, then three 429s with `Retry-After: 1`. Verified on Node 24.21.0 and Go 1.26.10: `make lint`, `make format-check`, `make test` (httpapi 100%, server 47.3%, calculator 96.9%, healthcheck 57.1%, frontend 100%), `make e2e` (14 passed) and `docker build` (13.8 MB). Two small follow-ups came out of verification: the README log example now uses a captured line, and the shutdown timeout logs as `10s` instead of nanoseconds in JSON.
