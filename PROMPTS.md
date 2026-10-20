@@ -84,3 +84,49 @@ Report the test output with per-package coverage and the commit list, then stop 
 ```
 
 Result: four commits as requested. `calculator` (96.9% coverage) exposes `Operation`, `ParseOperation`, `Calculate` and `Round`; `httpapi` (100%) registers the endpoint for all methods and answers 405 and 404 inside the JSON envelope; `main.go` serves `frontend/dist` with an index fallback and drains connections on SIGINT/SIGTERM. `gofmt -l`, `go vet` and `go test -race` are clean. The total in `coverage.txt` reads 66.4% only because `cmd/server` has no tests.
+
+## 3. Frontend: Vite scaffold, API client, Calculator component, styles and coverage
+
+Tool: Claude Code.
+
+```text
+Prompt 3. Backend reviewed and accepted as is. Now the frontend. Append this whole message verbatim to PROMPTS.md as prompt 3.
+
+## Frontend
+
+Scaffold frontend/ with the Vite react-ts template (React 19, TypeScript strict, Node 26 is installed). Keep the template's ESLint setup and make npm run lint pass. Commit package-lock.json so npm ci works in CI.
+
+Dependencies: react and react-dom only. Dev dependencies: vite, @vitejs/plugin-react, typescript, eslint and what the template brings, vitest, jsdom, @testing-library/react, @testing-library/user-event, @testing-library/jest-dom, @vitest/coverage-v8. No UI library, no state library, no HTTP client library.
+
+src/api/client.ts:
+- Operation as a string union that mirrors the backend: add, subtract, multiply, divide, power, sqrt, percent. Export a list of operations with a human label for each, in that order.
+- class ApiError extends Error with code and status. 
+- async function calculate(operation, a, b?) that POSTs JSON to /api/v1/calculate. For sqrt send only a. On a non-2xx response parse the {"error":{"code","message"}} envelope and throw ApiError with that code and message; if the body is not that envelope, throw ApiError with code UNEXPECTED_RESPONSE. On a network failure throw ApiError with code NETWORK_ERROR and a short message. Return the numeric result on success.
+- Tests with fetch mocked (vi.fn or vi.stubGlobal): success, each error path above, sqrt request body has no b, request has the right method, path, headers and body.
+
+src/components/Calculator.tsx:
+- A form with two labeled number inputs (a and b), a labeled select with the seven operations, and a submit button. Submitting with Enter works. When sqrt is selected, the b input is hidden and not required.
+- Client-side validation before calling the API: empty or non-numeric input shows an inline message and does not call the API.
+- While a request is in flight the button is disabled and shows that it is working.
+- The result renders in a region with aria-live="polite". Errors from the API render in an element with role="alert" showing the message from the backend. A new submit clears the previous result and error.
+- State with useState only. No context, no reducer, no global store.
+- Tests with Testing Library and user-event, with the client module mocked: renders inputs and all seven operations; happy path shows the result; API error shows the message in the alert; invalid input shows the inline message and the client is not called; selecting sqrt hides b and the client is called without b; the button is disabled while the promise is pending.
+
+Styles: plain CSS in one file. Usable at 375 px wide without horizontal scroll, inputs and buttons at least 44 px tall, visible focus outline, readable contrast. No CSS framework.
+
+src/App.tsx renders a heading and the Calculator. src/main.tsx as the template has it.
+
+vite.config.ts: dev server proxy from /api to http://localhost:8080; build output to dist; vitest configured with environment jsdom, a setup file that imports @testing-library/jest-dom/vitest, globals off, and coverage with provider v8 and reporters text and lcov.
+
+package.json scripts: dev, build, preview, lint, typecheck (tsc --noEmit -p tsconfig.app.json or the template's equivalent), test (vitest run), test:coverage (vitest run --coverage).
+
+Makefile at the repository root: add frontend-install (npm ci), frontend-test, frontend-build and frontend-coverage targets, and make test and make coverage run both layers. make coverage writes frontend/coverage.txt with the text summary and keeps backend/coverage.txt as it is. make run builds the frontend first so the Go binary serves it. Add node_modules, dist and coverage/ to .gitignore. Commit both coverage.txt files.
+
+Before you report: npm ci, npm run typecheck, npm run lint, npm test and npm run build must all pass. Then a smoke test: npm run build, start the Go server from the repository root, and curl / and POST /api/v1/calculate to confirm the binary serves the built frontend and the API together.
+
+Commit in steps: scaffold, API client with tests, Calculator component with tests, styles, Makefile and coverage. English messages, no mention of tooling.
+
+Report the test and coverage output for the frontend, the smoke test result and the commit list, then stop and wait for prompt 4.
+```
+
+Result: six commits (scaffold, API client, Calculator component, App test, stylesheet, Makefile and coverage). The current Vite react-ts template ships oxlint instead of ESLint, so the template's linter was kept and `npm run lint` passes with it. Frontend tests: 21 passing, 100% statements, branches, functions and lines. Smoke test from the repository root confirmed the Go binary serves `index.html`, the hashed JS bundle and `POST /api/v1/calculate` together.
