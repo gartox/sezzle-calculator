@@ -1,10 +1,12 @@
 BACKEND := backend
 FRONTEND := frontend
 BIN := bin/server
+IMAGE := sezzle-calculator
 
 .PHONY: test coverage run build clean \
         backend-test backend-coverage backend-build \
-        frontend-install frontend-test frontend-coverage frontend-build
+        frontend-install frontend-test frontend-coverage frontend-build \
+        docker-build docker-run
 
 ## test: run the tests of both layers
 test: backend-test frontend-test
@@ -49,3 +51,13 @@ frontend-coverage:
 
 frontend-build:
 	cd $(FRONTEND) && npm run build
+
+# Docker
+
+## docker-build: build the production image (frontend + server in one container)
+docker-build:
+	docker build -t $(IMAGE) .
+
+## docker-run: build the image and run it on port 8080, removing the container on exit
+docker-run: docker-build
+	docker run --rm -p 8080:8080 $(IMAGE)
