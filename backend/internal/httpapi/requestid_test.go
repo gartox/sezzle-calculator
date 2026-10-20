@@ -85,6 +85,7 @@ func TestRequestIDIsIdempotent(t *testing.T) {
 func TestErrorEnvelopeCarriesRequestID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, calculatePath, strings.NewReader(`{"operation":"divide","a":1,"b":0}`))
 	req.Header.Set(RequestIDHeader, "report-me-42")
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	NewHandler(nil).ServeHTTP(rec, req)
 

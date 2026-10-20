@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -36,6 +37,7 @@ func (c *fakeClock) Advance(d time.Duration) {
 func post(t *testing.T, h http.Handler, remote, forwarded string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, calculatePath, strings.NewReader(`{"operation":"add","a":1,"b":2}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = remote
 	if forwarded != "" {
 		req.Header.Set("X-Forwarded-For", forwarded)
@@ -269,5 +271,36 @@ func TestRetryAfterSeconds(t *testing.T) {
 		if got := retryAfterSeconds(tt.wait); got != tt.want {
 			t.Errorf("retryAfterSeconds(%v) = %d, want %d", tt.wait, got, tt.want)
 		}
+	}
+}
+
+func TestRateLimitConcurrentRequests(t *testing.T) {
+	clock := newFakeClock()
+	h := NewHandler(newRateLimiter(1, 20, false, clock.Now))
+
+	var allowed, limited atomic.Int64
+	var wg sync.WaitGroup
+	for i := range 200 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ip := "203.0.113.10:1"
+			if i%2 == 1 {
+				ip = "203.0.113.11:1"
+			}
+			switch post(t, h, ip, "").Code {
+			case http.StatusOK:
+				allowed.Add(1)
+			case http.StatusTooManyRequests:
+				limited.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	// Two clients with a burst of 20 each and no time passing: exactly 40 get
+	// through, whatever the interleaving. Run with -race.
+	if allowed.Load() != 40 || limited.Load() != 160 {
+		t.Fatalf("allowed=%d limited=%d, want 40 and 160", allowed.Load(), limited.Load())
 	}
 }

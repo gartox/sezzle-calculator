@@ -18,6 +18,7 @@ func TestAccessLog(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, calculatePath+"?secret=query", strings.NewReader(`{"operation":"divide","a":1,"b":0}`))
 	req.RemoteAddr = "203.0.113.7:51234"
 	req.Header.Set(RequestIDHeader, "log-me")
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

@@ -127,13 +127,14 @@ Every error has the same shape, `{"error": {"code": "...", "message": "...", "re
 
 | Code | Status | When |
 |---|---|---|
-| `INVALID_JSON` | 400 | The body is not a JSON object, has a wrong type (for example `"a": "2"`), is empty, has data after the object, or exceeds 1 MiB. |
-| `INVALID_OPERATION` | 400 | `operation` is missing or not one of the seven. |
+| `INVALID_JSON` | 400 | The body is not a JSON object, has a wrong type (for example `"a": "2"`), repeats a key, is empty, has data after the object, or exceeds 1 MiB. |
+| `INVALID_OPERATION` | 400 | `operation` is missing or not exactly one of the seven: names are lowercase and are not trimmed, so `ADD` and `" add "` are rejected. |
 | `INVALID_OPERAND` | 400 | `a` is missing, or `b` is missing for a two-operand operation. Also NaN or infinite operands, which JSON cannot carry but the calculator package rejects on its own. |
 | `DIVISION_BY_ZERO` | 422 | `divide` with `b` equal to 0. |
 | `NEGATIVE_SQRT` | 422 | `sqrt` with `a` below 0. |
 | `RESULT_OVERFLOW` | 422 | The result is not a finite number: `1e308 * 10`, `0 ^ -1`, `(-8) ^ 0.5`. |
 | `METHOD_NOT_ALLOWED` | 405 | Any method other than POST on the endpoint (an `Allow` header lists the right one). |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | The request's `Content-Type` is not `application/json` (a `charset` parameter is fine). |
 | `NOT_FOUND` | 404 | Any other path under `/api/`. |
 | `RATE_LIMITED` | 429 | The client sent more calculations than its per-IP limit allows. A `Retry-After` header gives the wait in whole seconds. |
 
@@ -358,7 +359,7 @@ make format-check
 
 What the service covers:
 
-- **Input.** The operation is an enum checked before anything else; operands must be JSON numbers; the body is capped at 1 MiB with `http.MaxBytesReader`; malformed JSON, wrong types, trailing data and out-of-range literals are rejected with `INVALID_JSON`; unknown fields are ignored.
+- **Input.** The body must be declared as `application/json`, otherwise `415`; this also keeps cross-site forms and `text/plain` requests, which browsers send without a CORS preflight, away from the API. The body is capped at 1 MiB with `http.MaxBytesReader`. Keys match exactly and a repeated key is rejected, so a proxy and this server can never read the same body differently. Malformed JSON, wrong types, trailing data and out-of-range literals are rejected with `INVALID_JSON`; unknown fields are ignored. The operation is an exact enum.
 - **Server limits.** `ReadHeaderTimeout` 5 s, `ReadTimeout` 10 s, `WriteTimeout` 10 s, `IdleTimeout` 60 s, and a 10 s graceful drain on `SIGINT` and `SIGTERM`.
 - **Error responses.** Messages are fixed strings; nothing from the runtime (stack traces, paths, decoder errors) reaches the client. The only input echoed back is the operation name in `INVALID_OPERATION`, JSON-encoded.
 - **Static files.** Served only from `STATIC_DIR`. Paths are cleaned before lookup and any path still containing `..` after decoding is refused with `400`; there is a unit test that tries to read a file next to the directory. The `index.html` fallback never leaves the directory.

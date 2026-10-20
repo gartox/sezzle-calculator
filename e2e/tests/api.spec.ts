@@ -106,3 +106,14 @@ test('GET /api/v1/openapi.yaml serves the contract', async ({ request }) => {
   expect(text).toMatch(/^openapi: 3\.1/)
   expect(text).toContain('/api/v1/calculate:')
 })
+
+test('POST with a non-JSON Content-Type returns 415', async ({ request }) => {
+  const response = await request.post(calculatePath, {
+    headers: { 'Content-Type': 'text/plain' },
+    data: '{"operation":"add","a":1,"b":2}',
+  })
+
+  expect(response.status()).toBe(415)
+  const body = await response.json()
+  expect(body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE')
+})

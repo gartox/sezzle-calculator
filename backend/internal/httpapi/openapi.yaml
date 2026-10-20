@@ -55,6 +55,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
         '429':
@@ -187,6 +189,7 @@ components:
         - METHOD_NOT_ALLOWED
         - NOT_FOUND
         - RATE_LIMITED
+        - UNSUPPORTED_MEDIA_TYPE
 
     ErrorDetail:
       type: object
@@ -298,6 +301,25 @@ components:
                 error:
                   code: METHOD_NOT_ALLOWED
                   message: Use POST to calculate.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+
+    UnsupportedMediaType:
+      description: >-
+        The body was not declared as JSON. Send `Content-Type: application/json`
+        (parameters such as `charset` are allowed).
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unsupportedMediaType:
+              value:
+                error:
+                  code: UNSUPPORTED_MEDIA_TYPE
+                  message: Content-Type must be application/json.
                   requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
 
     UnprocessableEntity:

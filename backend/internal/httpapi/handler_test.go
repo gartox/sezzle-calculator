@@ -185,6 +185,49 @@ func TestOpenAPIDocument(t *testing.T) {
 	assertJSONContentType(t, rec)
 }
 
+func TestContentType(t *testing.T) {
+	body := `{"operation":"add","a":1,"b":2}`
+	tests := []struct {
+		contentType string
+		wantStatus  int
+	}{
+		{contentType: "application/json", wantStatus: 200},
+		{contentType: "application/json; charset=utf-8", wantStatus: 200},
+		{contentType: "Application/JSON", wantStatus: 200},
+		{contentType: "", wantStatus: 415},
+		{contentType: "text/plain", wantStatus: 415},
+		{contentType: "text/plain; charset=utf-8", wantStatus: 415},
+		{contentType: "application/x-www-form-urlencoded", wantStatus: 415},
+		{contentType: "multipart/form-data; boundary=x", wantStatus: 415},
+		{contentType: "application/json-patch+json", wantStatus: 415},
+		{contentType: "application/json;;", wantStatus: 415},
+	}
+	for _, tt := range tests {
+		t.Run(tt.contentType, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, calculatePath, strings.NewReader(body))
+			if tt.contentType != "" {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
+			rec := httptest.NewRecorder()
+			NewHandler(nil).ServeHTTP(rec, req)
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body)
+			}
+			if tt.wantStatus == http.StatusUnsupportedMediaType {
+				var resp struct {
+					Error struct {
+						Code string `json:"code"`
+					} `json:"error"`
+				}
+				decodeBody(t, rec, &resp)
+				if resp.Error.Code != CodeUnsupportedMediaType {
+					t.Fatalf("code = %q, want %q", resp.Error.Code, CodeUnsupportedMediaType)
+				}
+			}
+		})
+	}
+}
+
 func TestErrorMessages(t *testing.T) {
 	tests := []struct {
 		name, body, want string

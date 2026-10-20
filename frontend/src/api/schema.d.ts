@@ -84,7 +84,7 @@ export interface components {
          * @description Stable machine-readable reason for a failed request.
          * @enum {string}
          */
-        ErrorCode: "INVALID_JSON" | "INVALID_OPERATION" | "INVALID_OPERAND" | "DIVISION_BY_ZERO" | "NEGATIVE_SQRT" | "RESULT_OVERFLOW" | "METHOD_NOT_ALLOWED" | "NOT_FOUND" | "RATE_LIMITED";
+        ErrorCode: "INVALID_JSON" | "INVALID_OPERATION" | "INVALID_OPERAND" | "DIVISION_BY_ZERO" | "NEGATIVE_SQRT" | "RESULT_OVERFLOW" | "METHOD_NOT_ALLOWED" | "NOT_FOUND" | "RATE_LIMITED" | "UNSUPPORTED_MEDIA_TYPE";
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];
             /** @description Human-readable explanation. Never contains internals. */
@@ -126,6 +126,16 @@ export interface components {
                 "X-Request-Id": components["headers"]["RequestId"];
                 /** @description The method the route accepts. */
                 Allow?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
+        /** @description The body was not declared as JSON. Send `Content-Type: application/json` (parameters such as `charset` are allowed). */
+        UnsupportedMediaType: {
+            headers: {
+                "X-Request-Id": components["headers"]["RequestId"];
                 [name: string]: unknown;
             };
             content: {
@@ -197,6 +207,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             405: components["responses"]["MethodNotAllowed"];
+            415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["UnprocessableEntity"];
             429: components["responses"]["TooManyRequests"];
         };

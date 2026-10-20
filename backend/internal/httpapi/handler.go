@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -26,6 +27,11 @@ const (
 	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
 	CodeNotFound         = "NOT_FOUND"
 	CodeRateLimited      = "RATE_LIMITED"
+	// CodeUnsupportedMediaType rejects bodies not declared as JSON. Besides
+	// being honest about the contract, it means a cross-site form or a
+	// text/plain fetch, which browsers send without a CORS preflight, can
+	// never reach the calculation.
+	CodeUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
 )
 
 type calculateRequest struct {
@@ -69,6 +75,10 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		writeError(w, r, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use POST to calculate.")
+		return
+	}
+	if !isJSON(r.Header.Get("Content-Type")) {
+		writeError(w, r, http.StatusUnsupportedMediaType, CodeUnsupportedMediaType, "Content-Type must be application/json.")
 		return
 	}
 
@@ -221,6 +231,13 @@ func mapCalculationError(err error) (status int, code, message string) {
 		// unless the calculator grows new errors; report it as a bad operation.
 		return http.StatusBadRequest, CodeInvalidOperation, "The operation could not be performed."
 	}
+}
+
+// isJSON reports whether a Content-Type header names application/json,
+// with or without parameters such as charset.
+func isJSON(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	return err == nil && mediaType == "application/json"
 }
 
 func supportedOperations() string {
