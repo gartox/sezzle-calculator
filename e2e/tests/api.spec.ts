@@ -70,3 +70,39 @@ test('GET / sends the security headers', async ({ request }) => {
   expect(headers['content-security-policy']).toContain("frame-ancestors 'none'")
   expect(headers['cache-control']).toBe('no-cache')
 })
+
+test('every response carries an X-Request-Id', async ({ request }) => {
+  const response = await request.get('/api/v1/health')
+
+  expect(response.headers()['x-request-id']).toMatch(/^[0-9a-f]{32}$/)
+})
+
+test('a valid X-Request-Id is echoed back', async ({ request }) => {
+  const response = await request.get('/api/v1/health', {
+    headers: { 'X-Request-Id': 'e2e-trace-42' },
+  })
+
+  expect(response.headers()['x-request-id']).toBe('e2e-trace-42')
+})
+
+test('the error envelope carries the request ID', async ({ request }) => {
+  const response = await request.post(calculatePath, {
+    headers: { 'X-Request-Id': 'e2e-error-7' },
+    data: { operation: 'divide', a: 1, b: 0 },
+  })
+
+  expect(response.status()).toBe(422)
+  const body = await response.json()
+  expect(body.error.requestId).toBe('e2e-error-7')
+  expect(response.headers()['x-request-id']).toBe('e2e-error-7')
+})
+
+test('GET /api/v1/openapi.yaml serves the contract', async ({ request }) => {
+  const response = await request.get('/api/v1/openapi.yaml')
+
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toBe('application/yaml')
+  const text = await response.text()
+  expect(text).toMatch(/^openapi: 3\.1/)
+  expect(text).toContain('/api/v1/calculate:')
+})

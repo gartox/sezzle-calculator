@@ -19,7 +19,9 @@ export default defineConfig({
     // Builds the frontend (when needed) and the Go binary, then serves both.
     command: 'sh scripts/start-stack.sh',
     url: `${baseURL}/api/v1/health`,
-    env: { PORT: String(PORT), STATIC_DIR: 'frontend/dist' },
+    // RATE_LIMIT_RPS=0 turns the per-IP limit off so parallel workers never
+    // trip it. The 429 path is covered by the Go unit tests, not end to end.
+    env: { PORT: String(PORT), STATIC_DIR: 'frontend/dist', RATE_LIMIT_RPS: '0' },
     // When something already answers on the port (for example the Docker
     // container started with PORT=8090), test against it instead.
     reuseExistingServer: true,

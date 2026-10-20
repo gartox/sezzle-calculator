@@ -8,6 +8,9 @@
 ### Health check: 200 {"status":"ok"}
 GET {{baseUrl}}/api/v1/health
 
+### The OpenAPI 3.1 contract the binary was built with (application/yaml)
+GET {{baseUrl}}/api/v1/openapi.yaml
+
 ### Add: 0.1 + 0.2 is rounded to 12 significant digits, so the result is 0.3
 POST {{baseUrl}}/api/v1/calculate
 Content-Type: application/json
@@ -46,3 +49,10 @@ POST {{baseUrl}}/api/v1/calculate
 Content-Type: application/json
 
 {"operation": "add",
+
+### Custom request ID: echoed in X-Request-Id and in error.requestId, and logged
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+X-Request-Id: my-trace-123
+
+{"operation": "divide", "a": 1, "b": 0}
