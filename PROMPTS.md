@@ -308,3 +308,39 @@ Report the scan output, the header values observed with curl -I on / and on an a
 ```
 
 Result: five commits. Node 24 is the minimum (`engines`, `.nvmrc`, `node:24-alpine`, CI matrix on 24 and 26). A `secureHeaders` middleware in `cmd/server` sets the five headers and the cache policy on every response, with httptest coverage that also exercises the static handler against `..` traversal, lifting `cmd/server` from 0% to 46.3% and the backend total to 77.5%. Scans: `npm audit` found 0 vulnerabilities in both packages; `govulncheck` reported 15 standard library vulnerabilities in Go 1.26.5 (all fixed by 1.26.9), so `go.mod` now pins 1.26.10 and the scan reports none; Trivy on the image found 0 in the Debian layer and in both Go binaries. A `security` CI job and Dependabot were added. Verified on Node 24.21.0: `make test`, `make e2e` (10 passed) and `docker build`.
+
+## 8. Code style with oxlint and Prettier, pull request validation, image publishing
+
+Tool: Claude Code.
+
+```text
+Prompt 8. Start this only after prompt 7 is committed. Append this whole message verbatim to PROMPTS.md as prompt 8.
+
+## Code style: oxlint stays, Prettier is added
+
+- Keep oxlint as the linter in frontend and add the same setup to e2e: an .oxlintrc.json there (or one shared at the root if oxlint supports it cleanly) and a lint script.
+- Add Prettier as a dev dependency in frontend and e2e with one shared configuration at the repository root, .prettierrc, matching the style the code already has: no semicolons, single quotes, print width 100, trailing commas everywhere. Add .prettierignore for node_modules, dist, coverage, playwright-report, test-results and package-lock.json.
+- Scripts in both packages: format (prettier --write .) and format:check (prettier --check .).
+- Run prettier --write once and commit that diff on its own as "Apply Prettier formatting" so the convention change is separate from any logic change. If oxlint and Prettier disagree on a rule, disable the stylistic rule in oxlint; Prettier owns formatting.
+- Makefile: lint (gofmt check, go vet, oxlint in both packages), format (gofmt -w, prettier --write in both) and format-check targets. make lint and make format-check must be part of what CI runs.
+
+## Validation on every pull request
+
+- In .github/workflows/ci.yml, add lint and format:check steps to the frontend job and a lint plus format:check step sequence to the e2e job, before the tests, so a PR with lint or format violations fails fast. The workflow already triggers on pull_request to main; keep that.
+- Add .github/pull_request_template.md with three short headings: What, Why, How it was tested.
+
+## Publish the image from main
+
+- Add a publish job that runs only on push to main (not on pull requests) and only after backend, frontend, docker, e2e and security succeed. It logs in to GitHub Container Registry with the built-in GITHUB_TOKEN (permissions packages: write, contents: read), builds the image with docker/build-push-action and pushes ghcr.io/gartox/sezzle-calculator tagged with latest and with the commit SHA. No other secrets.
+- README: a Deploy section with the docker pull and docker run commands for that image, and a sentence that the image is published automatically from main by CI. A Code style section with the lint and format commands and one line on why oxlint plus Prettier.
+
+## Verification before you report
+
+make lint, make format-check, make test and make e2e must pass. The publish job cannot run locally; say so and show that the workflow file validates (for example with actionlint via its Docker image, or by reviewing the YAML carefully if that is not available).
+
+Commit in steps: Prettier configuration and scripts, Apply Prettier formatting, oxlint for e2e and Makefile targets, CI validation steps and PR template, publish job and README sections. English messages, no mention of tooling. Do not push.
+
+Report the commands run, the number of files Prettier changed, and the commit list, then stop and wait for prompt 9.
+```
+
+Result: five commits. Prettier 3.9 with the shared `.prettierrc` reformatted 7 files (five frontend sources and two `tsconfig.json`), committed on their own; oxlint had nothing to say about them, so no rule was disabled. e2e got the same oxlint setup and a `lint` script; the Makefile gained `lint`, `format` and `format-check`, and the frontend and e2e CI jobs run lint and `format:check` before the tests. The `publish` job pushes `ghcr.io/gartox/sezzle-calculator` (`latest` and the commit SHA) only on pushes to `main` after the five other jobs, with the workflow token alone. Verified on Node 24.21.0: `make lint`, `make format-check`, `make test` and `make e2e` (10 passed). The publish job cannot run locally; actionlint 1.7.12 reports 0 errors on the workflow (the Docker image pull stalled, so it ran through `go run` instead).
