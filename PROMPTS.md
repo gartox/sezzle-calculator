@@ -418,3 +418,7 @@ Clone the repository into a new empty folder outside it and, on Node 24 and Go 1
 
 Small commits on main with clear English messages. No AI markers anywhere: the local commit-msg hook rejects them. Do not create a remote and do not push; that needs Jesús's explicit yes. When done, report: the findings list with what you fixed and what you did not, the clean-clone results, coverage per package, the final commit count, and the commit list for this prompt. Then stop.
 ```
+
+## What I did without AI
+
+To be written by the author.
