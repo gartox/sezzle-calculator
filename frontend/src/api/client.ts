@@ -1,23 +1,41 @@
-// Typed client for the calculator API. Mirrors the backend contract in
-// backend/internal/httpapi so the UI never builds requests by hand.
+// Typed client for the calculator API. The request, response and error
+// types come from schema.d.ts, which is generated from the OpenAPI document
+// (`npm run generate:api`), so the UI cannot drift from the backend contract.
 
-export type Operation = 'add' | 'subtract' | 'multiply' | 'divide' | 'power' | 'sqrt' | 'percent'
+import type { components } from './schema'
+
+type Schemas = components['schemas']
+
+export type Operation = Schemas['Operation']
+type CalculateRequest = Schemas['CalculateRequest']
+
+/** Codes the client raises itself when there is no usable API response. */
+export type ClientErrorCode = 'NETWORK_ERROR' | 'UNEXPECTED_RESPONSE'
+
+/** Every code an {@link ApiError} can carry: the API's codes plus the client's. */
+export type ErrorCode = Schemas['ErrorCode'] | ClientErrorCode
 
 export interface OperationOption {
   value: Operation
   label: string
 }
 
+// A Record keyed by Operation fails to compile if the contract gains an
+// operation without a label here. Key order is the display order.
+const OPERATION_LABELS: Record<Operation, string> = {
+  add: 'Add (a + b)',
+  subtract: 'Subtract (a − b)',
+  multiply: 'Multiply (a × b)',
+  divide: 'Divide (a ÷ b)',
+  power: 'Power (a ^ b)',
+  sqrt: 'Square root (√a)',
+  percent: 'Percent (a % of b)',
+}
+
 /** Every supported operation with a label for the UI, in display order. */
-export const OPERATIONS: readonly OperationOption[] = [
-  { value: 'add', label: 'Add (a + b)' },
-  { value: 'subtract', label: 'Subtract (a − b)' },
-  { value: 'multiply', label: 'Multiply (a × b)' },
-  { value: 'divide', label: 'Divide (a ÷ b)' },
-  { value: 'power', label: 'Power (a ^ b)' },
-  { value: 'sqrt', label: 'Square root (√a)' },
-  { value: 'percent', label: 'Percent (a % of b)' },
-]
+export const OPERATIONS: readonly OperationOption[] = (
+  Object.keys(OPERATION_LABELS) as Operation[]
+).map((value) => ({ value, label: OPERATION_LABELS[value] }))
 
 /** Operations that take a single operand. */
 export const UNARY_OPERATIONS: ReadonlySet<Operation> = new Set<Operation>(['sqrt'])
@@ -31,10 +49,10 @@ export const CALCULATE_PATH = '/api/v1/calculate'
  * when no response was received.
  */
 export class ApiError extends Error {
-  readonly code: string
+  readonly code: ErrorCode
   readonly status: number
 
-  constructor(code: string, message: string, status: number) {
+  constructor(code: ErrorCode, message: string, status: number) {
     super(message)
     this.name = 'ApiError'
     this.code = code
@@ -42,11 +60,10 @@ export class ApiError extends Error {
   }
 }
 
-interface ErrorEnvelope {
-  error: { code: string; message: string }
-}
-
-function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
+// The guard checks the envelope's shape. The code itself is trusted to be one
+// of the contract's values: the API is same-origin and built from the same
+// OpenAPI document as these types.
+function isErrorEnvelope(body: unknown): body is Schemas['ErrorResponse'] {
   if (typeof body !== 'object' || body === null || !('error' in body)) {
     return false
   }
@@ -64,7 +81,7 @@ function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
  * For unary operations (sqrt) `b` is omitted from the request.
  */
 export async function calculate(operation: Operation, a: number, b?: number): Promise<number> {
-  const payload: { operation: Operation; a: number; b?: number } = { operation, a }
+  const payload: CalculateRequest = { operation, a }
   if (!UNARY_OPERATIONS.has(operation)) {
     payload.b = b
   }
