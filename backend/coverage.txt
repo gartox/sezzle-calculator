@@ -2,9 +2,11 @@ github.com/gartox/sezzle-calculator/backend/cmd/healthcheck/main.go:14:			main		
 github.com/gartox/sezzle-calculator/backend/cmd/healthcheck/main.go:26:			check			100.0%
 github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:27:			main			0.0%
 github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:34:			run			0.0%
-github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:86:			spaHandler		0.0%
-github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:99:			isDir			0.0%
-github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:104:			envOr			0.0%
+github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:86:			spaHandler		100.0%
+github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:99:			isDir			100.0%
+github.com/gartox/sezzle-calculator/backend/cmd/server/main.go:104:			envOr			100.0%
+github.com/gartox/sezzle-calculator/backend/cmd/server/middleware.go:29:		secureHeaders		100.0%
+github.com/gartox/sezzle-calculator/backend/cmd/server/middleware.go:42:		cacheControlFor		100.0%
 github.com/gartox/sezzle-calculator/backend/internal/calculator/calculator.go:45:	ParseOperation		100.0%
 github.com/gartox/sezzle-calculator/backend/internal/calculator/calculator.go:59:	Calculate		100.0%
 github.com/gartox/sezzle-calculator/backend/internal/calculator/calculator.go:103:	Round			75.0%
@@ -18,4 +20,4 @@ github.com/gartox/sezzle-calculator/backend/internal/httpapi/handler.go:135:		ma
 github.com/gartox/sezzle-calculator/backend/internal/httpapi/handler.go:152:		supportedOperations	100.0%
 github.com/gartox/sezzle-calculator/backend/internal/httpapi/handler.go:160:		writeError		100.0%
 github.com/gartox/sezzle-calculator/backend/internal/httpapi/handler.go:164:		writeJSON		100.0%
-total:											(statements)		66.9%
+total:											(statements)		77.5%

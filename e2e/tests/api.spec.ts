@@ -59,3 +59,14 @@ test('POST a malformed body returns 400 INVALID_JSON', async ({ request }) => {
   const body = await response.json()
   expect(body.error.code).toBe('INVALID_JSON')
 })
+
+test('GET / sends the security headers', async ({ request }) => {
+  const response = await request.get('/')
+
+  expect(response.status()).toBe(200)
+  const headers = response.headers()
+  expect(headers['x-content-type-options']).toBe('nosniff')
+  expect(headers['content-security-policy']).toContain("default-src 'self'")
+  expect(headers['content-security-policy']).toContain("frame-ancestors 'none'")
+  expect(headers['cache-control']).toBe('no-cache')
+})

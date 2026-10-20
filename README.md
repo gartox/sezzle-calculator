@@ -232,7 +232,7 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 | `backend/internal/calculator` | 96.9% | The only uncovered branch is an unreachable fallback in `Round`. |
 | `backend/internal/httpapi` | 100% | |
 | `backend/cmd/healthcheck` | 57.1% | `check` is fully tested; `main` is not. |
-| `backend/cmd/server` | 0% | No unit tests. Startup, static serving, the index fallback and graceful shutdown are exercised by the end-to-end suite and the Docker verification instead. |
+| `backend/cmd/server` | 46.3% | The security headers middleware, the static handler (including traversal attempts) and the helpers are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the Docker verification exercise it. |
 | `frontend/src` | 100% | Statements, branches, functions and lines. |
 
 ### End-to-end
