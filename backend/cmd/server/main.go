@@ -84,7 +84,7 @@ func run() error {
 	case <-ctx.Done():
 	}
 
-	slog.Info("shutdown signal received, draining connections", "timeout", shutdownTimeout)
+	slog.Info("shutdown signal received, draining connections", "timeout", shutdownTimeout.String())
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
