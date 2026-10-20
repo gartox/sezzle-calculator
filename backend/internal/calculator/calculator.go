@@ -100,7 +100,12 @@ func Calculate(op Operation, a, b float64) (float64, error) {
 // Round rounds x to SignificantDigits significant digits. It formats the
 // value in decimal and parses it back, so the result is the float64 nearest
 // to the rounded decimal and never overflows, whatever the magnitude of x.
+// Negative zero becomes zero: IEEE 754 keeps the sign (-1 * 0 is -0), but a
+// calculator showing "-0" only confuses people.
 func Round(x float64) float64 {
+	if x == 0 {
+		return 0
+	}
 	rounded, err := strconv.ParseFloat(strconv.FormatFloat(x, 'g', SignificantDigits, 64), 64)
 	if err != nil {
 		// FormatFloat always produces a parseable number for finite input;

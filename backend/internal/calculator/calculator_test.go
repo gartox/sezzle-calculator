@@ -52,6 +52,11 @@ func TestCalculate(t *testing.T) {
 		{name: "nan operand b", op: Add, a: 1, b: math.NaN(), wantErr: ErrInvalidOperand},
 		{name: "positive infinity operand", op: Multiply, a: math.Inf(1), b: 1, wantErr: ErrInvalidOperand},
 		{name: "negative infinity operand", op: Subtract, a: 1, b: math.Inf(-1), wantErr: ErrInvalidOperand},
+		{name: "multiply negative by zero is zero, not -0", op: Multiply, a: -1, b: 0, want: 0},
+		{name: "sqrt of negative zero is zero", op: Sqrt, a: math.Copysign(0, -1), want: 0},
+		{name: "percent of negative number by zero is zero", op: Percent, a: 0, b: -5, want: 0},
+		{name: "divide by negative zero", op: Divide, a: 1, b: math.Copysign(0, -1), wantErr: ErrDivisionByZero},
+		{name: "underflow rounds to zero", op: Multiply, a: 1e-200, b: 1e-200, want: 0},
 		{name: "unknown operation", op: Operation("modulo"), a: 1, b: 2, wantErr: ErrUnknownOperation},
 		{name: "empty operation", op: Operation(""), a: 1, b: 2, wantErr: ErrUnknownOperation},
 	}
@@ -67,6 +72,9 @@ func TestCalculate(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Fatalf("Calculate(%q, %v, %v) = %v, want %v", tt.op, tt.a, tt.b, got, tt.want)
+			}
+			if got == 0 && math.Signbit(got) {
+				t.Fatalf("Calculate(%q, %v, %v) = -0, want 0", tt.op, tt.a, tt.b)
 			}
 		})
 	}
@@ -94,6 +102,7 @@ func TestRound(t *testing.T) {
 		want float64
 	}{
 		{name: "zero", in: 0, want: 0},
+		{name: "negative zero becomes zero", in: math.Copysign(0, -1), want: 0},
 		{name: "integer unchanged", in: 1024, want: 1024},
 		{name: "negative unchanged", in: -2.5, want: -2.5},
 		{name: "float noise removed", in: 0.1 + 0.2, want: 0.3},
@@ -107,7 +116,8 @@ func TestRound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Round(tt.in); got != tt.want {
+			got := Round(tt.in)
+			if got != tt.want || math.Signbit(got) != math.Signbit(tt.want) {
 				t.Fatalf("Round(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
