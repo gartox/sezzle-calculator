@@ -128,6 +128,13 @@ button:disabled {
   border-radius: var(--radius);
 }
 
+.request-id {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 .result {
   display: block;
   min-height: 1.5rem;

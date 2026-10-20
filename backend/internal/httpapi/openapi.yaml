@@ -18,6 +18,8 @@ paths:
     post:
       operationId: calculate
       summary: Perform one arithmetic operation
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
       requestBody:
         required: true
         content:
@@ -37,6 +39,9 @@ paths:
       responses:
         '200':
           description: The operation succeeded.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
           content:
             application/json:
               schema:
@@ -57,9 +62,14 @@ paths:
     get:
       operationId: health
       summary: Liveness check used by Docker and Compose
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
       responses:
         '200':
           description: The server is up.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
           content:
             application/json:
               schema:
@@ -74,9 +84,14 @@ paths:
     get:
       operationId: openapi
       summary: This document
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
       responses:
         '200':
           description: The OpenAPI document that the binary was built with.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
           content:
             application/yaml:
               schema:
@@ -85,6 +100,27 @@ paths:
           $ref: '#/components/responses/MethodNotAllowed'
 
 components:
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: >-
+        Optional caller-chosen ID, echoed back and written to the access log.
+        Kept only if it is 1 to 64 letters, digits, dashes or underscores;
+        otherwise the server generates one.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{1,64}$'
+
+  headers:
+    RequestId:
+      description: >-
+        The request's ID: the caller's X-Request-Id when it was valid, otherwise
+        32 random hex characters. Present on every response.
+      schema:
+        type: string
+
   schemas:
     Operation:
       type: string
@@ -149,13 +185,20 @@ components:
 
     ErrorDetail:
       type: object
-      required: [code, message]
+      required: [code, message, requestId]
       properties:
         code:
           $ref: '#/components/schemas/ErrorCode'
         message:
           type: string
           description: Human-readable explanation. Never contains internals.
+        requestId:
+          type: string
+          description: >-
+            The request's ID, also sent as the X-Request-Id header. Quote it when
+            reporting a problem; it identifies the request in the access log.
+          examples:
+            - 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
 
     ErrorResponse:
       type: object
@@ -169,6 +212,9 @@ components:
       description: >-
         The request could not be understood. Bodies over 1 MiB are rejected
         with `INVALID_JSON` as well; the API does not use 413.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
       content:
         application/json:
           schema:
@@ -180,21 +226,27 @@ components:
                 error:
                   code: INVALID_JSON
                   message: Request body must be a JSON object with a string "operation" and numeric "a" and "b".
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
             invalidOperation:
               summary: Unknown operation
               value:
                 error:
                   code: INVALID_OPERATION
                   message: 'Unknown operation "modulo". Supported operations: add, subtract, multiply, divide, power, sqrt, percent.'
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
             invalidOperand:
               summary: Missing operand
               value:
                 error:
                   code: INVALID_OPERAND
                   message: Operand "b" is required for "add".
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
 
     NotFound:
       description: No such route under `/api/`.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
       content:
         application/json:
           schema:
@@ -205,10 +257,13 @@ components:
                 error:
                   code: NOT_FOUND
                   message: No such API route.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
 
     MethodNotAllowed:
       description: The route exists but not for this method.
       headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
         Allow:
           description: The method the route accepts.
           schema:
@@ -224,9 +279,13 @@ components:
                 error:
                   code: METHOD_NOT_ALLOWED
                   message: Use POST to calculate.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
 
     UnprocessableEntity:
       description: The request was well formed but the operation cannot be performed.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
       content:
         application/json:
           schema:
@@ -237,14 +296,17 @@ components:
                 error:
                   code: DIVISION_BY_ZERO
                   message: Cannot divide by zero.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
             negativeSqrt:
               value:
                 error:
                   code: NEGATIVE_SQRT
                   message: Cannot take the square root of a negative number.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
             resultOverflow:
               summary: Result is infinite or not a number
               value:
                 error:
                   code: RESULT_OVERFLOW
                   message: The result is not a finite number.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e

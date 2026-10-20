@@ -46,17 +46,21 @@ export const CALCULATE_PATH = '/api/v1/calculate'
  * Error raised by {@link calculate}. `code` is the backend's error code
  * (for example DIVISION_BY_ZERO) or one of the client-side codes
  * NETWORK_ERROR and UNEXPECTED_RESPONSE. `status` is the HTTP status, or 0
- * when no response was received.
+ * when no response was received. `requestId` is set when the backend answered,
+ * so a user can quote it.
  */
 export class ApiError extends Error {
   readonly code: ErrorCode
   readonly status: number
+  /** The server's ID for the failed request; undefined for client-side errors. */
+  readonly requestId?: string
 
-  constructor(code: ErrorCode, message: string, status: number) {
+  constructor(code: ErrorCode, message: string, status: number, requestId?: string) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.requestId = requestId
   }
 }
 
@@ -106,7 +110,7 @@ export async function calculate(operation: Operation, a: number, b?: number): Pr
 
   if (!response.ok) {
     if (isErrorEnvelope(body)) {
-      throw new ApiError(body.error.code, body.error.message, response.status)
+      throw new ApiError(body.error.code, body.error.message, response.status, body.error.requestId)
     }
     throw new ApiError(
       'UNEXPECTED_RESPONSE',

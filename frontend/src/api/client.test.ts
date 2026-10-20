@@ -72,13 +72,23 @@ describe('calculate', () => {
 
   it('throws ApiError with the backend code and message on an error envelope', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: { code: 'DIVISION_BY_ZERO', message: 'Cannot divide by zero.' } }, 422),
+      jsonResponse(
+        {
+          error: {
+            code: 'DIVISION_BY_ZERO',
+            message: 'Cannot divide by zero.',
+            requestId: 'req-123',
+          },
+        },
+        422,
+      ),
     )
 
     const error = await expectApiError(calculate('divide', 1, 0))
     expect(error.code).toBe('DIVISION_BY_ZERO')
     expect(error.message).toBe('Cannot divide by zero.')
     expect(error.status).toBe(422)
+    expect(error.requestId).toBe('req-123')
   })
 
   it('throws UNEXPECTED_RESPONSE when an error body is not the envelope', async () => {
@@ -112,6 +122,7 @@ describe('calculate', () => {
     const error = await expectApiError(calculate('add', 1, 2))
     expect(error.code).toBe('NETWORK_ERROR')
     expect(error.status).toBe(0)
+    expect(error.requestId).toBeUndefined()
     expect(error.message).not.toBe('')
   })
 })

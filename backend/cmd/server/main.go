@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -34,6 +35,11 @@ func main() {
 func run() error {
 	port := envOr("PORT", defaultPort)
 	staticDir := envOr("STATIC_DIR", defaultStaticDir)
+	// Trust X-Forwarded-For only behind a proxy that sets it; see httpapi.ClientIP.
+	trustProxy := os.Getenv("TRUST_PROXY") == "true"
+
+	logger := newLogger(os.Getenv("LOG_FORMAT"), os.Stderr)
+	slog.SetDefault(logger)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", httpapi.NewHandler())
@@ -46,7 +52,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           secureHeaders(mux),
+		Handler:           secureHeaders(httpapi.RequestID(httpapi.AccessLog(logger, trustProxy, mux))),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -94,6 +100,15 @@ func spaHandler(dir string) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// newLogger returns a JSON logger when format is "json" and a text logger
+// otherwise. JSON suits log collectors; text is easier to read in a terminal.
+func newLogger(format string, w io.Writer) *slog.Logger {
+	if format == "json" {
+		return slog.New(slog.NewJSONHandler(w, nil))
+	}
+	return slog.New(slog.NewTextHandler(w, nil))
 }
 
 func isDir(name string) bool {

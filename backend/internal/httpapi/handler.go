@@ -46,8 +46,9 @@ type errorResponse struct {
 }
 
 type errorDetail struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"requestId"`
 }
 
 // NewHandler returns the API router. Every route lives under /api/ and
@@ -58,37 +59,37 @@ func NewHandler() http.Handler {
 	mux.HandleFunc("/api/v1/health", handleHealth)
 	mux.HandleFunc("/api/v1/openapi.yaml", handleOpenAPI)
 	mux.HandleFunc("/api/", handleNotFound)
-	return mux
+	return RequestID(mux)
 }
 
 func handleCalculate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
-		writeError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use POST to calculate.")
+		writeError(w, r, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use POST to calculate.")
 		return
 	}
 
 	req, err := decodeRequest(w, r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, CodeInvalidJSON, "Request body must be a JSON object with a string \"operation\" and numeric \"a\" and \"b\".")
+		writeError(w, r, http.StatusBadRequest, CodeInvalidJSON, "Request body must be a JSON object with a string \"operation\" and numeric \"a\" and \"b\".")
 		return
 	}
 
 	op, err := calculator.ParseOperation(req.Operation)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, CodeInvalidOperation,
+		writeError(w, r, http.StatusBadRequest, CodeInvalidOperation,
 			fmt.Sprintf("Unknown operation %q. Supported operations: %s.", req.Operation, supportedOperations()))
 		return
 	}
 
 	if req.A == nil {
-		writeError(w, http.StatusBadRequest, CodeInvalidOperand, "Operand \"a\" is required.")
+		writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, "Operand \"a\" is required.")
 		return
 	}
 	var b float64
 	if op != calculator.Sqrt {
 		if req.B == nil {
-			writeError(w, http.StatusBadRequest, CodeInvalidOperand, fmt.Sprintf("Operand \"b\" is required for %q.", op))
+			writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, fmt.Sprintf("Operand \"b\" is required for %q.", op))
 			return
 		}
 		b = *req.B
@@ -97,7 +98,7 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 	result, err := calculator.Calculate(op, *req.A, b)
 	if err != nil {
 		status, code, message := mapCalculationError(err)
-		writeError(w, status, code, message)
+		writeError(w, r, status, code, message)
 		return
 	}
 	writeJSON(w, http.StatusOK, calculateResponse{Result: result})
@@ -107,14 +108,14 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to check health.")
+		writeError(w, r, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to check health.")
 		return
 	}
 	writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
 }
 
 func handleNotFound(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotFound, CodeNotFound, "No such API route.")
+	writeError(w, r, http.StatusNotFound, CodeNotFound, "No such API route.")
 }
 
 // decodeRequest parses exactly one JSON object from the body. Anything else
@@ -158,8 +159,14 @@ func supportedOperations() string {
 	return strings.Join(names, ", ")
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, errorResponse{Error: errorDetail{Code: code, Message: message}})
+// writeError sends the error envelope. The request ID lets a user quote the
+// failing request and lets an operator find it in the access log.
+func writeError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
+	writeJSON(w, status, errorResponse{Error: errorDetail{
+		Code:      code,
+		Message:   message,
+		RequestID: RequestIDFrom(r.Context()),
+	}})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

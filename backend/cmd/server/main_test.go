@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -85,5 +87,22 @@ func mustWrite(t *testing.T, name, content string) {
 	}
 	if err := os.WriteFile(name, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNewLogger(t *testing.T) {
+	var buf bytes.Buffer
+	newLogger("json", &buf).Info("hello", "k", "v")
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil || line["msg"] != "hello" || line["k"] != "v" {
+		t.Fatalf("json format: got %q (err %v)", buf.String(), err)
+	}
+
+	for _, format := range []string{"", "text", "anything-else"} {
+		buf.Reset()
+		newLogger(format, &buf).Info("hello", "k", "v")
+		if !strings.Contains(buf.String(), "msg=hello k=v") {
+			t.Fatalf("format %q: got %q, want text output", format, buf.String())
+		}
 	}
 }

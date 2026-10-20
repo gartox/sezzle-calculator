@@ -96,8 +96,9 @@ func TestCalculateErrors(t *testing.T) {
 			assertJSONContentType(t, rec)
 			var resp struct {
 				Error struct {
-					Code    string `json:"code"`
-					Message string `json:"message"`
+					Code      string `json:"code"`
+					Message   string `json:"message"`
+					RequestID string `json:"requestId"`
 				} `json:"error"`
 			}
 			decodeBody(t, rec, &resp)
@@ -106,6 +107,9 @@ func TestCalculateErrors(t *testing.T) {
 			}
 			if resp.Error.Message == "" {
 				t.Fatalf("error message is empty (body %s)", rec.Body)
+			}
+			if id := rec.Header().Get(RequestIDHeader); id == "" || resp.Error.RequestID != id {
+				t.Fatalf("error.requestId = %q, X-Request-Id = %q; want equal and non-empty", resp.Error.RequestID, id)
 			}
 		})
 	}

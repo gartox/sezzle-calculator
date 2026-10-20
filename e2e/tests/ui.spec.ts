@@ -21,7 +21,9 @@ test('dividing by zero shows the backend message and no result', async ({ page }
   await page.getByLabel('Number b').fill('0')
   await page.getByRole('button', { name: 'Calculate' }).click()
 
-  await expect(page.getByRole('alert')).toHaveText('Cannot divide by zero.')
+  const alert = page.getByRole('alert')
+  await expect(alert).toContainText('Cannot divide by zero.')
+  await expect(alert).toContainText(/Request ID: \S+/)
   await expect(page.getByRole('status')).not.toContainText('Result')
 })
 

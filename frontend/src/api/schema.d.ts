@@ -89,6 +89,11 @@ export interface components {
             code: components["schemas"]["ErrorCode"];
             /** @description Human-readable explanation. Never contains internals. */
             message: string;
+            /**
+             * @description The request's ID, also sent as the X-Request-Id header. Quote it when reporting a problem; it identifies the request in the access log.
+             * @example 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+             */
+            requestId: string;
         };
         ErrorResponse: {
             error: components["schemas"]["ErrorDetail"];
@@ -98,6 +103,7 @@ export interface components {
         /** @description The request could not be understood. Bodies over 1 MiB are rejected with `INVALID_JSON` as well; the API does not use 413. */
         BadRequest: {
             headers: {
+                "X-Request-Id": components["headers"]["RequestId"];
                 [name: string]: unknown;
             };
             content: {
@@ -107,6 +113,7 @@ export interface components {
         /** @description No such route under `/api/`. */
         NotFound: {
             headers: {
+                "X-Request-Id": components["headers"]["RequestId"];
                 [name: string]: unknown;
             };
             content: {
@@ -116,6 +123,7 @@ export interface components {
         /** @description The route exists but not for this method. */
         MethodNotAllowed: {
             headers: {
+                "X-Request-Id": components["headers"]["RequestId"];
                 /** @description The method the route accepts. */
                 Allow?: string;
                 [name: string]: unknown;
@@ -127,6 +135,7 @@ export interface components {
         /** @description The request was well formed but the operation cannot be performed. */
         UnprocessableEntity: {
             headers: {
+                "X-Request-Id": components["headers"]["RequestId"];
                 [name: string]: unknown;
             };
             content: {
@@ -134,9 +143,15 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        /** @description Optional caller-chosen ID, echoed back and written to the access log. Kept only if it is 1 to 64 letters, digits, dashes or underscores; otherwise the server generates one. */
+        RequestId: string;
+    };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description The request's ID: the caller's X-Request-Id when it was valid, otherwise 32 random hex characters. Present on every response. */
+        RequestId: string;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
@@ -144,7 +159,10 @@ export interface operations {
     calculate: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional caller-chosen ID, echoed back and written to the access log. Kept only if it is 1 to 64 letters, digits, dashes or underscores; otherwise the server generates one. */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -157,6 +175,7 @@ export interface operations {
             /** @description The operation succeeded. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["RequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -172,7 +191,10 @@ export interface operations {
     health: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional caller-chosen ID, echoed back and written to the access log. Kept only if it is 1 to 64 letters, digits, dashes or underscores; otherwise the server generates one. */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -181,6 +203,7 @@ export interface operations {
             /** @description The server is up. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["RequestId"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -193,7 +216,10 @@ export interface operations {
     openapi: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional caller-chosen ID, echoed back and written to the access log. Kept only if it is 1 to 64 letters, digits, dashes or underscores; otherwise the server generates one. */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -202,6 +228,7 @@ export interface operations {
             /** @description The OpenAPI document that the binary was built with. */
             200: {
                 headers: {
+                    "X-Request-Id": components["headers"]["RequestId"];
                     [name: string]: unknown;
                 };
                 content: {

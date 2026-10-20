@@ -83,7 +83,7 @@ describe('Calculator', () => {
 
   it('shows the backend message in an alert when the API fails', async () => {
     calculateMock.mockRejectedValueOnce(
-      new ApiError('DIVISION_BY_ZERO', 'Cannot divide by zero.', 422),
+      new ApiError('DIVISION_BY_ZERO', 'Cannot divide by zero.', 422, 'req-42'),
     )
     const { user, inputA, inputB, select, button } = setup()
 
@@ -94,6 +94,7 @@ describe('Calculator', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Cannot divide by zero.')
+    expect(within(alert).getByText('Request ID: req-42')).toBeInTheDocument()
     expect(screen.queryByText('Result')).not.toBeInTheDocument()
   })
 
@@ -105,7 +106,9 @@ describe('Calculator', () => {
     await user.type(inputB(), '2')
     await user.click(button())
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/something went wrong/i)
+    expect(alert).not.toHaveTextContent(/request id/i)
   })
 
   it('shows inline messages for empty input and does not call the API', async () => {

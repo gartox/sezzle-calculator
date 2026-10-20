@@ -13,7 +13,7 @@ function Calculator() {
   const [b, setB] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [result, setResult] = useState<number | null>(null)
-  const [apiError, setApiError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<{ message: string; requestId?: string } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   const id = useId()
@@ -46,7 +46,9 @@ function Calculator() {
       setResult(value)
     } catch (error) {
       setApiError(
-        error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+        error instanceof ApiError
+          ? { message: error.message, requestId: error.requestId }
+          : { message: 'Something went wrong. Please try again.' },
       )
     } finally {
       setIsLoading(false)
@@ -125,7 +127,10 @@ function Calculator() {
 
       {apiError && (
         <p className="api-error" role="alert">
-          {apiError}
+          {apiError.message}
+          {apiError.requestId && (
+            <small className="request-id">Request ID: {apiError.requestId}</small>
+          )}
         </p>
       )}
     </form>

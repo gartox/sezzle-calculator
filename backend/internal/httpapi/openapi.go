@@ -15,7 +15,7 @@ var openAPISpec []byte
 func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to fetch the OpenAPI document.")
+		writeError(w, r, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to fetch the OpenAPI document.")
 		return
 	}
 	w.Header().Set("Content-Type", "application/yaml")
