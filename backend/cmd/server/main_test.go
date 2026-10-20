@@ -106,3 +106,32 @@ func TestNewLogger(t *testing.T) {
 		}
 	}
 }
+
+func TestRateLimitFromEnv(t *testing.T) {
+	tests := []struct {
+		rps, burst string
+		wantRPS    float64
+		wantBurst  int
+		wantErr    bool
+	}{
+		{rps: "", burst: "", wantRPS: 10, wantBurst: 20},
+		{rps: "0", burst: "", wantRPS: 0, wantBurst: 20},
+		{rps: "1", burst: "2", wantRPS: 1, wantBurst: 2},
+		{rps: "0.5", burst: "1", wantRPS: 0.5, wantBurst: 1},
+		{rps: "-1", wantErr: true},
+		{rps: "fast", wantErr: true},
+		{burst: "0", wantErr: true},
+		{burst: "many", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Setenv("RATE_LIMIT_RPS", tt.rps)
+		t.Setenv("RATE_LIMIT_BURST", tt.burst)
+		rps, burst, err := rateLimitFromEnv()
+		if (err != nil) != tt.wantErr {
+			t.Fatalf("rps=%q burst=%q: err = %v, wantErr %v", tt.rps, tt.burst, err, tt.wantErr)
+		}
+		if !tt.wantErr && (rps != tt.wantRPS || burst != tt.wantBurst) {
+			t.Fatalf("rps=%q burst=%q: got %v, %d", tt.rps, tt.burst, rps, burst)
+		}
+	}
+}

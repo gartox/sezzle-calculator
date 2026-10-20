@@ -13,7 +13,7 @@ import (
 func TestAccessLog(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-	handler := RequestID(AccessLog(logger, false, NewHandler()))
+	handler := RequestID(AccessLog(logger, false, NewHandler(nil)))
 
 	req := httptest.NewRequest(http.MethodPost, calculatePath+"?secret=query", strings.NewReader(`{"operation":"divide","a":1,"b":0}`))
 	req.RemoteAddr = "203.0.113.7:51234"

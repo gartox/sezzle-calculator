@@ -57,6 +57,8 @@ paths:
           $ref: '#/components/responses/MethodNotAllowed'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /api/v1/health:
     get:
@@ -182,6 +184,7 @@ components:
         - RESULT_OVERFLOW
         - METHOD_NOT_ALLOWED
         - NOT_FOUND
+        - RATE_LIMITED
 
     ErrorDetail:
       type: object
@@ -309,4 +312,30 @@ components:
                 error:
                   code: RESULT_OVERFLOW
                   message: The result is not a finite number.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+
+    TooManyRequests:
+      description: >-
+        The client sent more calculations than the per-IP limit allows
+        (by default 10 per second with bursts of 20). Only this endpoint is
+        limited.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Retry-After:
+          description: Whole seconds until the next request will be accepted.
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rateLimited:
+              value:
+                error:
+                  code: RATE_LIMITED
+                  message: Too many requests. Try again in 1 second.
                   requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e

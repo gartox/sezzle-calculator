@@ -84,7 +84,7 @@ export interface components {
          * @description Stable machine-readable reason for a failed request.
          * @enum {string}
          */
-        ErrorCode: "INVALID_JSON" | "INVALID_OPERATION" | "INVALID_OPERAND" | "DIVISION_BY_ZERO" | "NEGATIVE_SQRT" | "RESULT_OVERFLOW" | "METHOD_NOT_ALLOWED" | "NOT_FOUND";
+        ErrorCode: "INVALID_JSON" | "INVALID_OPERATION" | "INVALID_OPERAND" | "DIVISION_BY_ZERO" | "NEGATIVE_SQRT" | "RESULT_OVERFLOW" | "METHOD_NOT_ALLOWED" | "NOT_FOUND" | "RATE_LIMITED";
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];
             /** @description Human-readable explanation. Never contains internals. */
@@ -142,6 +142,18 @@ export interface components {
                 "application/json": components["schemas"]["ErrorResponse"];
             };
         };
+        /** @description The client sent more calculations than the per-IP limit allows (by default 10 per second with bursts of 20). Only this endpoint is limited. */
+        TooManyRequests: {
+            headers: {
+                "X-Request-Id": components["headers"]["RequestId"];
+                /** @description Whole seconds until the next request will be accepted. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponse"];
+            };
+        };
     };
     parameters: {
         /** @description Optional caller-chosen ID, echoed back and written to the access log. Kept only if it is 1 to 64 letters, digits, dashes or underscores; otherwise the server generates one. */
@@ -186,6 +198,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             405: components["responses"]["MethodNotAllowed"];
             422: components["responses"]["UnprocessableEntity"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     health: {

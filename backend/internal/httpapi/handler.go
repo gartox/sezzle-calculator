@@ -25,6 +25,7 @@ const (
 	CodeResultOverflow   = "RESULT_OVERFLOW"
 	CodeMethodNotAllowed = "METHOD_NOT_ALLOWED"
 	CodeNotFound         = "NOT_FOUND"
+	CodeRateLimited      = "RATE_LIMITED"
 )
 
 type calculateRequest struct {
@@ -52,10 +53,12 @@ type errorDetail struct {
 }
 
 // NewHandler returns the API router. Every route lives under /api/ and
-// every response, including errors, is JSON.
-func NewHandler() http.Handler {
+// every response, including errors, is JSON. limiter throttles the calculate
+// endpoint per client; nil disables rate limiting. Health checks and the
+// OpenAPI document are never limited.
+func NewHandler(limiter *RateLimiter) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/calculate", handleCalculate)
+	mux.Handle("/api/v1/calculate", limiter.Limit(http.HandlerFunc(handleCalculate)))
 	mux.HandleFunc("/api/v1/health", handleHealth)
 	mux.HandleFunc("/api/v1/openapi.yaml", handleOpenAPI)
 	mux.HandleFunc("/api/", handleNotFound)

@@ -86,7 +86,7 @@ func TestErrorEnvelopeCarriesRequestID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, calculatePath, strings.NewReader(`{"operation":"divide","a":1,"b":0}`))
 	req.Header.Set(RequestIDHeader, "report-me-42")
 	rec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(rec, req)
+	NewHandler(nil).ServeHTTP(rec, req)
 
 	var resp struct {
 		Error struct {

@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -41,8 +43,16 @@ func run() error {
 	logger := newLogger(os.Getenv("LOG_FORMAT"), os.Stderr)
 	slog.SetDefault(logger)
 
+	rps, burst, err := rateLimitFromEnv()
+	if err != nil {
+		return err
+	}
+	limiter := httpapi.NewRateLimiter(rps, burst, trustProxy)
+	defer limiter.Stop()
+	slog.Info("rate limit", "rps", rps, "burst", burst, "enabled", limiter != nil, "trust_proxy", trustProxy)
+
 	mux := http.NewServeMux()
-	mux.Handle("/api/", httpapi.NewHandler())
+	mux.Handle("/api/", httpapi.NewHandler(limiter))
 	if isDir(staticDir) {
 		mux.Handle("/", spaHandler(staticDir))
 		slog.Info("serving frontend", "dir", staticDir)
@@ -83,6 +93,7 @@ func run() error {
 	if err := <-serveErr; !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	limiter.Stop()
 	slog.Info("server stopped")
 	return nil
 }
@@ -109,6 +120,20 @@ func newLogger(format string, w io.Writer) *slog.Logger {
 		return slog.New(slog.NewJSONHandler(w, nil))
 	}
 	return slog.New(slog.NewTextHandler(w, nil))
+}
+
+// rateLimitFromEnv reads RATE_LIMIT_RPS (default 10, 0 disables the limit)
+// and RATE_LIMIT_BURST (default 20).
+func rateLimitFromEnv() (float64, int, error) {
+	rps, err := strconv.ParseFloat(envOr("RATE_LIMIT_RPS", "10"), 64)
+	if err != nil || rps < 0 {
+		return 0, 0, fmt.Errorf("RATE_LIMIT_RPS must be a number >= 0, got %q", os.Getenv("RATE_LIMIT_RPS"))
+	}
+	burst, err := strconv.Atoi(envOr("RATE_LIMIT_BURST", "20"))
+	if err != nil || burst < 1 {
+		return 0, 0, fmt.Errorf("RATE_LIMIT_BURST must be an integer >= 1, got %q", os.Getenv("RATE_LIMIT_BURST"))
+	}
+	return rps, burst, nil
 }
 
 func isDir(name string) bool {

@@ -185,7 +185,7 @@ func do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	NewHandler().ServeHTTP(rec, req)
+	NewHandler(nil).ServeHTTP(rec, req)
 	return rec
 }
 
