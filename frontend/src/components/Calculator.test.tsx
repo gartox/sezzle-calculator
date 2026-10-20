@@ -186,7 +186,9 @@ describe('Calculator', () => {
   it('clears the previous result and error on a new submit', async () => {
     calculateMock
       .mockResolvedValueOnce(5)
-      .mockRejectedValueOnce(new ApiError('RESULT_OVERFLOW', 'The result is not a finite number.', 422))
+      .mockRejectedValueOnce(
+        new ApiError('RESULT_OVERFLOW', 'The result is not a finite number.', 422),
+      )
       .mockResolvedValueOnce(7)
     const { user, inputA, inputB, button } = setup()
 

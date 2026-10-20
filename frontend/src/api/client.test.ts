@@ -72,10 +72,7 @@ describe('calculate', () => {
 
   it('throws ApiError with the backend code and message on an error envelope', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(
-        { error: { code: 'DIVISION_BY_ZERO', message: 'Cannot divide by zero.' } },
-        422,
-      ),
+      jsonResponse({ error: { code: 'DIVISION_BY_ZERO', message: 'Cannot divide by zero.' } }, 422),
     )
 
     const error = await expectApiError(calculate('divide', 1, 0))

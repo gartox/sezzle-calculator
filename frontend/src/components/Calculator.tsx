@@ -1,11 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
-import {
-  ApiError,
-  OPERATIONS,
-  UNARY_OPERATIONS,
-  calculate,
-  type Operation,
-} from '../api/client'
+import { ApiError, OPERATIONS, UNARY_OPERATIONS, calculate, type Operation } from '../api/client'
 import { validateNumber } from './validateNumber'
 
 interface FieldErrors {
@@ -51,7 +45,9 @@ function Calculator() {
       const value = await calculate(operation, Number(a), isUnary ? undefined : Number(b))
       setResult(value)
     } catch (error) {
-      setApiError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
+      setApiError(
+        error instanceof ApiError ? error.message : 'Something went wrong. Please try again.',
+      )
     } finally {
       setIsLoading(false)
     }

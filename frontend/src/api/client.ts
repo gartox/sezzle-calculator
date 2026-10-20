@@ -1,14 +1,7 @@
 // Typed client for the calculator API. Mirrors the backend contract in
 // backend/internal/httpapi so the UI never builds requests by hand.
 
-export type Operation =
-  | 'add'
-  | 'subtract'
-  | 'multiply'
-  | 'divide'
-  | 'power'
-  | 'sqrt'
-  | 'percent'
+export type Operation = 'add' | 'subtract' | 'multiply' | 'divide' | 'power' | 'sqrt' | 'percent'
 
 export interface OperationOption {
   value: Operation
@@ -70,11 +63,7 @@ function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
  * Sends one calculation to the API and resolves with the numeric result.
  * For unary operations (sqrt) `b` is omitted from the request.
  */
-export async function calculate(
-  operation: Operation,
-  a: number,
-  b?: number,
-): Promise<number> {
+export async function calculate(operation: Operation, a: number, b?: number): Promise<number> {
   const payload: { operation: Operation; a: number; b?: number } = { operation, a }
   if (!UNARY_OPERATIONS.has(operation)) {
     payload.b = b
