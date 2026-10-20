@@ -47,6 +47,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run format:check
       - run: npm test
       - run: npm run build
 
@@ -78,6 +79,8 @@ jobs:
             frontend/package-lock.json
             e2e/package-lock.json
       - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - uses: actions/upload-artifact@v7
