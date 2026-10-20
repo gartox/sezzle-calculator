@@ -9,6 +9,8 @@ on:
 permissions:
   contents: read
 
+# Toolchains: Go comes from backend/go.mod (1.26.10) in every job; Node is 24,
+# the minimum in package.json engines, plus 26 in the frontend matrix.
 jobs:
   backend:
     runs-on: ubuntu-latest

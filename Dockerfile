@@ -1,3 +1,8 @@
+# Toolchain versions: Node 24 (LTS) for the frontend build and Go 1.26.10 for
+# the server. The Go tag is pinned because backend/go.mod requires 1.26.10 and
+# the official image sets GOTOOLCHAIN=local, so an older 1.26 image would fail
+# instead of downloading the newer toolchain. Dependabot proposes updates.
+
 # Stage 1: build the frontend.
 FROM node:24-alpine AS frontend
 WORKDIR /src/frontend
@@ -7,7 +12,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: build the server and the health probe as static binaries.
-FROM golang:1.26-alpine AS backend
+FROM golang:1.26.10-alpine AS backend
 WORKDIR /src/backend
 COPY backend/go.mod ./
 RUN go mod download

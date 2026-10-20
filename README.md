@@ -8,7 +8,7 @@ A full-stack calculator: a Go REST API that performs the arithmetic and a React 
 
 Seven operations: add, subtract, multiply, divide, power, square root and percent, each validated on both sides and computed by the API.
 
-Stack: Go 1.26 standard library for the API, React 19 with TypeScript and Vite for the UI, Playwright for end-to-end tests, Docker for packaging.
+Stack: Go 1.26.10 standard library for the API, React 19 with TypeScript and Vite for the UI (Node 24 or newer), Playwright for end-to-end tests, Docker for packaging.
 
 ## Quick start
 
@@ -36,7 +36,7 @@ docker run --rm -p 8080:8080 sezzle-calculator
 
 ### Local build
 
-Prerequisites: Go 1.26 and Node 24 or newer (`.nvmrc` selects 24).
+Prerequisites: Go 1.26.10 or newer and Node 24 or newer (`.nvmrc` selects 24). `backend/go.mod` requires Go 1.26.10; an older Go 1.26 release would have to download that toolchain first.
 
 ```bash
 make run
@@ -46,7 +46,7 @@ This installs the frontend dependencies, builds the bundle into `frontend/dist`,
 
 ### Development with hot reload
 
-Prerequisites: Go 1.26 and Node 24 or newer.
+Prerequisites: Go 1.26.10 or newer and Node 24 or newer.
 
 Terminal one, the API:
 
@@ -337,7 +337,7 @@ make format-check
 
 **One endpoint with an operation enum.** `POST /api/v1/calculate` takes the operation as a field. The alternative, one route per operation, means seven handlers with the same decoding and error handling. A single handler validates once and the frontend needs one client function.
 
-**Standard library only.** `net/http` with Go 1.22 pattern routing, `encoding/json` and `log/slog` cover everything this service needs. A framework would add a dependency and a learning curve for reviewers without removing any code here.
+**Standard library only.** `net/http`, `encoding/json`, `mime` and `log/slog` cover everything this service needs. Routes are registered by path and each handler checks the method itself, because Go's method patterns answer a wrong method with a plain-text 405 instead of the JSON error envelope. A framework would add a dependency and a learning curve for reviewers without removing any code here.
 
 **A pure calculator package.** `internal/calculator` knows nothing about HTTP: it takes an operation and two floats and returns a result or a sentinel error. `internal/httpapi` only decodes, validates presence, and maps those errors to status codes with `errors.Is`. The arithmetic can be tested with a table and reused by anything else, and the handler tests stay about HTTP.
 

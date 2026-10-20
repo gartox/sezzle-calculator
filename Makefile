@@ -1,5 +1,6 @@
 # Calculator: Go API and React frontend. Run `make` with no arguments to
 # list the targets. Lines starting with "## target:" feed the help output.
+# Requires Go 1.26.10 or newer and Node 24 or newer.
 
 BACKEND := backend
 FRONTEND := frontend
@@ -16,7 +17,7 @@ IMAGE := sezzle-calculator
 
 ## help: list the available targets (default)
 help:
-	@echo "Usage: make <target>"
+	@echo "Usage: make <target>    (requires Go 1.26.10+ and Node 24+)"
 	@echo
 	@grep -hE '^## [a-zA-Z0-9_-]+:' $(MAKEFILE_LIST) \
 	  | sed -E 's/^## ([a-zA-Z0-9_-]+): */\1|/' \
