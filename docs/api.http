@@ -1,0 +1,48 @@
+# Calculator API: ready-to-run requests for the VS Code REST Client extension
+# and the JetBrains HTTP client. Click "Send Request" above any block.
+# Point @baseUrl at another instance if needed (the Vite dev server on
+# http://localhost:5173 proxies /api to the Go server as well).
+
+@baseUrl = http://localhost:8080
+
+### Health check: 200 {"status":"ok"}
+GET {{baseUrl}}/api/v1/health
+
+### Add: 0.1 + 0.2 is rounded to 12 significant digits, so the result is 0.3
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+
+{"operation": "add", "a": 0.1, "b": 0.2}
+
+### Square root uses only "a": {"result":4}
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+
+{"operation": "sqrt", "a": 16}
+
+### Percent is "a percent of b": 15% of 200 is {"result":30}
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+
+{"operation": "percent", "a": 15, "b": 200}
+
+### Division by zero: 422 DIVISION_BY_ZERO
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+
+{"operation": "divide", "a": 1, "b": 0}
+
+### Unknown operation: 400 INVALID_OPERATION (the message lists the valid ones)
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+
+{"operation": "modulo", "a": 1, "b": 2}
+
+### Wrong method: 405 METHOD_NOT_ALLOWED with an Allow: POST header
+GET {{baseUrl}}/api/v1/calculate
+
+### Malformed body: 400 INVALID_JSON
+POST {{baseUrl}}/api/v1/calculate
+Content-Type: application/json
+
+{"operation": "add",
