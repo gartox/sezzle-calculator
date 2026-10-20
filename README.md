@@ -36,7 +36,7 @@ docker run --rm -p 8080:8080 sezzle-calculator
 
 ### Local build
 
-Prerequisites: Go 1.26 and Node 26 (npm 11).
+Prerequisites: Go 1.26 and Node 24 or newer (`.nvmrc` selects 24).
 
 ```bash
 make run
@@ -46,7 +46,7 @@ This installs the frontend dependencies, builds the bundle into `frontend/dist`,
 
 ### Development with hot reload
 
-Prerequisites: Go 1.26 and Node 26.
+Prerequisites: Go 1.26 and Node 24 or newer.
 
 Terminal one, the API:
 

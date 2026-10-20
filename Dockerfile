@@ -1,5 +1,5 @@
 # Stage 1: build the frontend.
-FROM node:26-alpine AS frontend
+FROM node:24-alpine AS frontend
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
