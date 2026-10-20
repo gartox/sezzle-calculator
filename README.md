@@ -255,7 +255,7 @@ Playwright starts the stack itself on port 8090, building the frontend and the b
 
 ### CI
 
-The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with four jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, typecheck, lint, tests, build), `docker` (the image builds without being pushed) and `e2e` (Playwright on Chromium, with the HTML report uploaded as an artifact on failure).
+The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with five jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, typecheck, lint, tests, build, as a matrix on Node 24 and 26), `docker` (the image builds without being pushed), `e2e` (Playwright on Chromium with Node 24, with the HTML report uploaded as an artifact on failure) and `security` (the scans described under [Security](#security)).
 
 ## Design decisions
 
@@ -278,6 +278,26 @@ The workflow in `.github/workflows/ci.yml` runs on every push and pull request t
 **Distroless image with a Go health probe.** The runtime image is `gcr.io/distroless/static-debian12:nonroot`, which contains the static binary and nothing else: no shell, no package manager, a smaller attack surface and a 14 MB image. Because there is no shell or `curl`, the health check is a second tiny Go binary that requests `/api/v1/health`.
 
 **Playwright for both browser and API end-to-end tests.** One tool and one configuration exercise the real stack from a browser and from its `request` fixture, which keeps the API tests close to the UI tests and the CI job short. The suite reuses a running server, so the same tests validate the Docker image.
+
+## Security
+
+What the service covers:
+
+- **Input.** The operation is an enum checked before anything else; operands must be JSON numbers; the body is capped at 1 MiB with `http.MaxBytesReader`; malformed JSON, wrong types, trailing data and out-of-range literals are rejected with `INVALID_JSON`; unknown fields are ignored.
+- **Server limits.** `ReadHeaderTimeout` 5 s, `ReadTimeout` 10 s, `WriteTimeout` 10 s, `IdleTimeout` 60 s, and a 10 s graceful drain on `SIGINT` and `SIGTERM`.
+- **Error responses.** Messages are fixed strings; nothing from the runtime (stack traces, paths, decoder errors) reaches the client. The only input echoed back is the operation name in `INVALID_OPERATION`, JSON-encoded.
+- **Static files.** Served only from `STATIC_DIR`. Paths are cleaned before lookup and any path still containing `..` after decoding is refused with `400`; there is a unit test that tries to read a file next to the directory. The `index.html` fallback never leaves the directory.
+- **Response headers.** Every response, including errors and assets, carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: camera=(), microphone=(), geolocation=()` and a Content-Security-Policy restricted to this origin (`default-src`, `script-src`, `style-src`, `connect-src`, `img-src` plus `data:`, `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`). The Vite build emits no inline scripts or styles, so nothing needs `'unsafe-inline'`. `index.html` and the API are `Cache-Control: no-cache`; the hashed files under `/assets/` are `public, max-age=31536000, immutable`.
+- **Container.** The runtime image is `gcr.io/distroless/static-debian12:nonroot`: a static binary, no shell, no package manager, running as `nonroot`. The health check is a Go binary for that reason.
+- **Secrets.** None are needed and none are tracked; there are no environment files in the repository.
+- **Supply chain.** The `security` CI job fails on high or critical findings from `npm audit` in `frontend/` and `e2e/`, from `govulncheck` on the backend, and from Trivy on the built image (`HIGH,CRITICAL`, unfixed findings ignored). Dependabot opens weekly pull requests for npm, Go, Docker and GitHub Actions, with minor and patch bumps grouped. `backend/go.mod` pins Go 1.26.10 because `govulncheck` reported standard library issues in `net/http` and `crypto/tls` for 1.26.5 that were fixed in 1.26.9; with 1.26.10 it reports none, and at the time of writing `npm audit` and Trivy report zero findings.
+
+Deliberately out of scope, because they belong to the deployment in front of the service rather than to a calculator:
+
+- Authentication and authorization. Every request is anonymous.
+- Rate limiting and abuse protection.
+- TLS termination. The server speaks plain HTTP on one port; put it behind a reverse proxy or load balancer that terminates TLS.
+- Request logging and audit trails.
 
 ## Assumptions and limitations
 
