@@ -1,0 +1,8 @@
+# Build output
+bin/
+
+# Go coverage profile (the summary in backend/coverage.txt is committed)
+backend/coverage.out
+
+# OS files
+.DS_Store
