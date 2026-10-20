@@ -312,7 +312,7 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 
 ### End-to-end
 
-Playwright drives the real stack: the Go binary serving the built frontend. Three browser tests (add, divide by zero, square root) use accessible locators only, and eleven API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
+Playwright drives the real stack: the Go binary serving the built frontend. Three browser tests (add, divide by zero, square root) use accessible locators only, and twelve API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the `415` for a non-JSON body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
 
 Install once (dependencies and Chromium):
 
