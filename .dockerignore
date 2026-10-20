@@ -1,0 +1,15 @@
+.git
+.github
+**/node_modules
+**/dist
+bin
+**/coverage
+**/coverage.out
+**/coverage.txt
+*.md
+**/*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+Makefile
+.DS_Store

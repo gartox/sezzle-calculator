@@ -1,0 +1,19 @@
+services:
+  calculator:
+    build: .
+    image: sezzle-calculator
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    # The runtime image is distroless (no shell, curl or wget), so the health
+    # check cannot be a shell command. The image ships a second tiny Go
+    # binary, /app/healthcheck, that requests GET /api/v1/health on localhost
+    # and exits non-zero unless the server answers 200. Both this file and the
+    # Dockerfile's HEALTHCHECK use it, so `docker ps` and `docker compose ps`
+    # report the service as healthy once the server is up.
+    healthcheck:
+      test: ["CMD", "/app/healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
