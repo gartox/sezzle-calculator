@@ -158,7 +158,7 @@ Every response carries an `X-Request-Id` header. A caller may send its own (1 to
 The server writes one access log line per request with the request ID, method, path (without the query string), status, duration in milliseconds, bytes written and client IP. Request bodies are never logged. Logs go to standard error as text by default, or as JSON with `LOG_FORMAT=json`:
 
 ```json
-{"time":"2026-10-20T20:41:07.120Z","level":"INFO","msg":"request","request_id":"readme-example","method":"POST","path":"/api/v1/calculate","status":422,"duration_ms":0.141,"bytes":102,"client_ip":"127.0.0.1"}
+{"time":"2026-10-20T15:10:36.523224-06:00","level":"INFO","msg":"request","request_id":"readme-example","method":"POST","path":"/api/v1/calculate","status":422,"duration_ms":0.052,"bytes":102,"client_ip":"::1"}
 ```
 
 ### Configuration
