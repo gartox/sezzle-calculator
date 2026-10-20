@@ -142,6 +142,19 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestReadRoutesAcceptHead(t *testing.T) {
+	for _, path := range []string{healthPath, "/api/v1/openapi.yaml"} {
+		rec := do(t, http.MethodHead, path, "")
+		if rec.Code != http.StatusOK {
+			t.Errorf("HEAD %s: status = %d, want 200", path, rec.Code)
+		}
+	}
+	rec := do(t, http.MethodHead, calculatePath, "")
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("HEAD %s: status = %d, want 405", calculatePath, rec.Code)
+	}
+}
+
 func TestHealthRejectsOtherMethods(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
 		t.Run(method, func(t *testing.T) {
@@ -150,8 +163,8 @@ func TestHealthRejectsOtherMethods(t *testing.T) {
 				t.Fatalf("status = %d, body = %s; want 405", rec.Code, rec.Body)
 			}
 			assertJSONContentType(t, rec)
-			if got := rec.Header().Get("Allow"); got != http.MethodGet {
-				t.Fatalf("Allow header = %q, want %q", got, http.MethodGet)
+			if got := rec.Header().Get("Allow"); got != readMethods {
+				t.Fatalf("Allow header = %q, want %q", got, readMethods)
 			}
 			var resp struct {
 				Error struct {
@@ -179,8 +192,8 @@ func TestOpenAPIDocument(t *testing.T) {
 	}
 
 	rec = do(t, http.MethodPost, "/api/v1/openapi.yaml", "")
-	if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != http.MethodGet {
-		t.Fatalf("POST: status = %d, Allow = %q; want 405 and GET", rec.Code, rec.Header().Get("Allow"))
+	if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != readMethods {
+		t.Fatalf("POST: status = %d, Allow = %q; want 405 and %q", rec.Code, rec.Header().Get("Allow"), readMethods)
 	}
 	assertJSONContentType(t, rec)
 }

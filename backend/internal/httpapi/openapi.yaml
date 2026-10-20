@@ -83,6 +83,17 @@ paths:
                   value: { status: ok }
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+    head:
+      operationId: healthHead
+      summary: Liveness check without a body, for load balancers that probe with HEAD
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: The server is up.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
 
   /api/v1/openapi.yaml:
     get:
@@ -287,7 +298,7 @@ components:
         X-Request-Id:
           $ref: '#/components/headers/RequestId'
         Allow:
-          description: The method the route accepts.
+          description: The methods the route accepts (`POST`, or `GET, HEAD` for the read-only routes).
           schema:
             type: string
             example: POST

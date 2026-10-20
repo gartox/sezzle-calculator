@@ -127,10 +127,18 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, calculateResponse{Result: result})
 }
 
+// readMethods is the Allow value for the read-only routes. HEAD is accepted
+// because many load balancers probe with it; net/http drops the body.
+const readMethods = "GET, HEAD"
+
+func isRead(r *http.Request) bool {
+	return r.Method == http.MethodGet || r.Method == http.MethodHead
+}
+
 // handleHealth answers liveness probes from Docker, Compose and load balancers.
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
+	if !isRead(r) {
+		w.Header().Set("Allow", readMethods)
 		writeError(w, r, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to check health.")
 		return
 	}

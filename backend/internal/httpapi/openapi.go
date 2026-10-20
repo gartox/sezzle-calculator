@@ -13,8 +13,8 @@ import (
 var openAPISpec []byte
 
 func handleOpenAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
+	if !isRead(r) {
+		w.Header().Set("Allow", readMethods)
 		writeError(w, r, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "Use GET to fetch the OpenAPI document.")
 		return
 	}

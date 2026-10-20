@@ -34,7 +34,8 @@ export interface paths {
         post?: never;
         delete?: never;
         options?: never;
-        head?: never;
+        /** Liveness check without a body, for load balancers that probe with HEAD */
+        head: operations["healthHead"];
         patch?: never;
         trace?: never;
     };
@@ -124,7 +125,7 @@ export interface components {
         MethodNotAllowed: {
             headers: {
                 "X-Request-Id": components["headers"]["RequestId"];
-                /** @description The method the route accepts. */
+                /** @description The methods the route accepts (`POST`, or `GET, HEAD` for the read-only routes). */
                 Allow?: string;
                 [name: string]: unknown;
             };
@@ -235,6 +236,28 @@ export interface operations {
                 };
             };
             405: components["responses"]["MethodNotAllowed"];
+        };
+    };
+    healthHead: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional caller-chosen ID, echoed back and written to the access log. Kept only if it is 1 to 64 letters, digits, dashes or underscores; otherwise the server generates one. */
+                "X-Request-Id"?: components["parameters"]["RequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The server is up. */
+            200: {
+                headers: {
+                    "X-Request-Id": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     openapi: {
