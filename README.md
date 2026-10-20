@@ -85,14 +85,15 @@ Open http://localhost:8080. To pin a build, replace `latest` with the commit SHA
 │   ├── cmd/healthcheck/      tiny probe used as the container health check
 │   └── internal/
 │       ├── calculator/       pure arithmetic and rounding, no HTTP
-│       └── httpapi/          JSON handler: decode, validate, map errors to status codes
+│       └── httpapi/          JSON handler, OpenAPI document, request IDs, access log, rate limit
 ├── frontend/                 React 19 + TypeScript + Vite
 │   └── src/
 │       ├── api/client.ts     typed client for POST /api/v1/calculate
+│       ├── api/schema.d.ts   types generated from the OpenAPI document
 │       └── components/       Calculator form and input validation
 ├── e2e/                      Playwright tests (browser and API) against the real stack
 ├── docs/api.http             ready-to-run requests for the VS Code and JetBrains HTTP clients
-├── .github/workflows/ci.yml  backend, frontend, docker and e2e jobs
+├── .github/workflows/ci.yml  lint, tests, scans, image build and publish
 ├── Dockerfile                multi-stage build, distroless runtime image
 ├── docker-compose.yml        one service with a health check
 ├── Makefile                  run `make` to list the targets
@@ -101,7 +102,7 @@ Open http://localhost:8080. To pin a build, replace `latest` with the commit SHA
 
 ## API
 
-One endpoint performs every operation.
+One endpoint performs every operation. The contract is an OpenAPI 3.1 document, [backend/internal/httpapi/openapi.yaml](backend/internal/httpapi/openapi.yaml), embedded in the binary and served at `GET /api/v1/openapi.yaml`. It lives inside the Go package because `go:embed` can only read files there; it is the only copy. The frontend's request, response and error types in `frontend/src/api/schema.d.ts` are generated from it with `npm run generate:api`, a Go test fails if its enums disagree with the handler's error codes or the calculator's operations, and CI fails if the generated types are stale.
 
 ```
 POST /api/v1/calculate
@@ -122,7 +123,7 @@ Success, `200 OK`:
 
 `operation` is one of `add`, `subtract`, `multiply`, `divide`, `power`, `sqrt`, `percent`. `a` and `b` are JSON numbers. `sqrt` uses only `a`; the other six need both.
 
-Every error has the same shape, `{"error": {"code": "...", "message": "..."}}`. The code is stable and meant for clients; the message is for people.
+Every error has the same shape, `{"error": {"code": "...", "message": "...", "requestId": "..."}}`. The code is stable and meant for clients; the message is for people; the request ID identifies the request in the server log (see [Observability](#observability)).
 
 | Code | Status | When |
 |---|---|---|
@@ -134,6 +135,7 @@ Every error has the same shape, `{"error": {"code": "...", "message": "..."}}`. 
 | `RESULT_OVERFLOW` | 422 | The result is not a finite number: `1e308 * 10`, `0 ^ -1`, `(-8) ^ 0.5`. |
 | `METHOD_NOT_ALLOWED` | 405 | Any method other than POST on the endpoint (an `Allow` header lists the right one). |
 | `NOT_FOUND` | 404 | Any other path under `/api/`. |
+| `RATE_LIMITED` | 429 | The client sent more calculations than its per-IP limit allows. A `Retry-After` header gives the wait in whole seconds. |
 
 400 means the request is malformed; 422 means it was well formed but the operation cannot be performed.
 
@@ -142,6 +144,35 @@ Health check, used by Docker and Compose:
 ```
 GET /api/v1/health  ->  200 {"status":"ok"}
 ```
+
+### Rate limiting
+
+`POST /api/v1/calculate` is limited per client IP with a token bucket: by default each client may send 20 requests at once and 10 per second after that. Over the limit the API answers `429 RATE_LIMITED` with `Retry-After`. The health check, the OpenAPI document and the static UI are not limited. Buckets idle for three minutes are dropped by a sweep that runs every minute, so memory is bounded by recently active clients.
+
+The client IP is the TCP peer address. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`, because any client can set that header and would otherwise choose its own IP and bypass the limit. Turn it on only behind a reverse proxy that overwrites the header. The limit is per server instance; several replicas would each keep their own buckets.
+
+### Observability
+
+Every response carries an `X-Request-Id` header. A caller may send its own (1 to 64 letters, digits, dashes or underscores) and it is echoed back; anything else is replaced by 32 random hex characters. Error bodies repeat it as `error.requestId`, and the UI shows it in small print under an error so a user can quote it.
+
+The server writes one access log line per request with the request ID, method, path (without the query string), status, duration in milliseconds, bytes written and client IP. Request bodies are never logged. Logs go to standard error as text by default, or as JSON with `LOG_FORMAT=json`:
+
+```json
+{"time":"2026-10-20T20:41:07.120Z","level":"INFO","msg":"request","request_id":"readme-example","method":"POST","path":"/api/v1/calculate","status":422,"duration_ms":0.141,"bytes":102,"client_ip":"127.0.0.1"}
+```
+
+### Configuration
+
+The server reads these environment variables:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `8080` | Port to listen on. |
+| `STATIC_DIR` | `frontend/dist` | Built frontend to serve; when the directory is missing only the API is served. The Docker image sets `/app/frontend/dist`. |
+| `RATE_LIMIT_RPS` | `10` | Calculations per second per client IP. `0` disables rate limiting. |
+| `RATE_LIMIT_BURST` | `20` | Requests a client may send at once before the per-second rate applies. Must be at least 1. |
+| `TRUST_PROXY` | unset | `true` takes the client IP from the first `X-Forwarded-For` address. Leave unset unless a proxy sets that header. |
+| `LOG_FORMAT` | text | `json` switches all logs to JSON lines. |
 
 ### Examples
 
@@ -177,47 +208,61 @@ curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/js
 {"result":30}
 ```
 
+Error responses include a request ID. Without an `X-Request-Id` header it is random on every call, so the error examples below send a fixed one to make the output reproducible.
+
 Division by zero, `422`:
 
 ```bash
-curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -d '{"operation":"divide","a":1,"b":0}'
+curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -H 'X-Request-Id: readme-example' -d '{"operation":"divide","a":1,"b":0}'
 ```
 
 ```json
-{"error":{"code":"DIVISION_BY_ZERO","message":"Cannot divide by zero."}}
+{"error":{"code":"DIVISION_BY_ZERO","message":"Cannot divide by zero.","requestId":"readme-example"}}
 ```
 
 Unknown operation, `400`:
 
 ```bash
-curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -d '{"operation":"modulo","a":1,"b":2}'
+curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -H 'X-Request-Id: readme-example' -d '{"operation":"modulo","a":1,"b":2}'
 ```
 
 ```json
-{"error":{"code":"INVALID_OPERATION","message":"Unknown operation \"modulo\". Supported operations: add, subtract, multiply, divide, power, sqrt, percent."}}
+{"error":{"code":"INVALID_OPERATION","message":"Unknown operation \"modulo\". Supported operations: add, subtract, multiply, divide, power, sqrt, percent.","requestId":"readme-example"}}
 ```
 
 Malformed body, `400`:
 
 ```bash
-curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -d '{"operation":"add",'
+curl -s -X POST localhost:8080/api/v1/calculate -H 'Content-Type: application/json' -H 'X-Request-Id: readme-example' -d '{"operation":"add",'
 ```
 
 ```json
-{"error":{"code":"INVALID_JSON","message":"Request body must be a JSON object with a string \"operation\" and numeric \"a\" and \"b\"."}}
+{"error":{"code":"INVALID_JSON","message":"Request body must be a JSON object with a string \"operation\" and numeric \"a\" and \"b\".","requestId":"readme-example"}}
 ```
 
 GET on the endpoint, `405` with `Allow: POST`:
 
 ```bash
-curl -s localhost:8080/api/v1/calculate
+curl -s -H 'X-Request-Id: readme-example' localhost:8080/api/v1/calculate
 ```
 
 ```json
-{"error":{"code":"METHOD_NOT_ALLOWED","message":"Use POST to calculate."}}
+{"error":{"code":"METHOD_NOT_ALLOWED","message":"Use POST to calculate.","requestId":"readme-example"}}
 ```
 
-The same requests, plus the health check, are in [docs/api.http](docs/api.http) for the VS Code REST Client extension and the JetBrains HTTP client.
+The OpenAPI document:
+
+```bash
+curl -s localhost:8080/api/v1/openapi.yaml | head -3
+```
+
+```yaml
+openapi: 3.1.0
+info:
+  title: Calculator API
+```
+
+The same requests, plus the health check and a custom request ID, are in [docs/api.http](docs/api.http) for the VS Code REST Client extension and the JetBrains HTTP client.
 
 ## Tests
 
@@ -244,14 +289,14 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 | Package | Coverage | Note |
 |---|---|---|
 | `backend/internal/calculator` | 96.9% | The only uncovered branch is an unreachable fallback in `Round`. |
-| `backend/internal/httpapi` | 100% | |
+| `backend/internal/httpapi` | 100% | Includes the rate limiter (with a fake clock), request IDs, the access log and the OpenAPI contract test. |
 | `backend/cmd/healthcheck` | 57.1% | `check` is fully tested; `main` is not. |
-| `backend/cmd/server` | 46.3% | The security headers middleware, the static handler (including traversal attempts) and the helpers are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the Docker verification exercise it. |
+| `backend/cmd/server` | 47.3% | The security headers middleware, the static handler (including traversal attempts), the logger and the environment parsing are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the Docker verification exercise it. |
 | `frontend/src` | 100% | Statements, branches, functions and lines. |
 
 ### End-to-end
 
-Playwright drives the real stack: the Go binary serving the built frontend. Three browser tests (add, divide by zero, square root) use accessible locators only, and six API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header and a malformed body.
+Playwright drives the real stack: the Go binary serving the built frontend. Three browser tests (add, divide by zero, square root) use accessible locators only, and eleven API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
 
 Install once (dependencies and Chromium):
 
@@ -269,7 +314,7 @@ Playwright starts the stack itself on port 8090, building the frontend and the b
 
 ### CI
 
-The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with six jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, typecheck, lint, format check, tests, build, as a matrix on Node 24 and 26), `docker` (the image builds without being pushed), `e2e` (lint, format check and Playwright on Chromium with Node 24, with the HTML report uploaded as an artifact on failure), `security` (the scans described under [Security](#security)) and `publish` (pushes to `main` only, after the others pass; see [Deploy](#deploy)).
+The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with six jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, a check that the generated API types match the OpenAPI document, typecheck, lint, format check, tests, build, as a matrix on Node 24 and 26), `docker` (the image builds without being pushed), `e2e` (lint, format check and Playwright on Chromium with Node 24, with the HTML report uploaded as an artifact on failure), `security` (the scans described under [Security](#security)) and `publish` (pushes to `main` only, after the others pass; see [Deploy](#deploy)).
 
 ## Code style
 
@@ -325,17 +370,17 @@ What the service covers:
 Deliberately out of scope, because they belong to the deployment in front of the service rather than to a calculator:
 
 - Authentication and authorization. Every request is anonymous.
-- Rate limiting and abuse protection.
+- Rate limiting across instances. The built-in limit (see [Rate limiting](#rate-limiting)) is per process and per IP; shared or per-account quotas belong in a gateway.
 - TLS termination. The server speaks plain HTTP on one port; put it behind a reverse proxy or load balancer that terminates TLS.
-- Request logging and audit trails.
+- Audit trails and log retention. The access log goes to standard error for the platform to collect.
 
 ## Assumptions and limitations
 
 - Operands are JSON numbers. Strings, BigInt and numeric literals outside the `float64` range are rejected as `INVALID_JSON`.
 - Results that are infinite or not a number are reported as `RESULT_OVERFLOW` rather than returned.
-- No authentication, authorization or rate limiting. The request body is capped at 1 MiB.
+- No authentication or authorization. Calculations are rate limited per IP and per instance only, and the request body is capped at 1 MiB.
 - No persistence: every request is independent and nothing is stored.
-- Single instance. The server has no state, so running more than one behind a load balancer would work, but nothing here sets that up.
+- Single instance. The only state is the in-memory rate limit buckets, so several replicas behind a load balancer would work but would each apply the limit separately; nothing here sets that up.
 
 ## Prompts
 
