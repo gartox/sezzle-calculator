@@ -226,3 +226,44 @@ Report the Playwright output for both runs and the commit list, then stop and wa
 ```
 
 Result: five commits. Playwright 1.64 with Chromium only, a start script that builds the frontend when `dist` is missing and compiles the Go binary, and `reuseExistingServer` so a running container on port 8090 is used instead. Cold run: 9 passed in 12.9 s including the full build; run against the Docker container: 9 passed in 1.7 s. `@types/node` was added to the e2e package so `tsc` can type `process.env`.
+
+## 6. README and self-documenting Makefile
+
+Tool: Claude Code.
+
+```text
+Prompt 6. Packaging and end-to-end tests reviewed and verified on my side (image built, container probed, Playwright green against it). Now the README. Append this whole message verbatim to PROMPTS.md as prompt 6.
+
+## README.md
+
+Write it in English for a reviewer who has ten minutes and will follow it literally on a clean machine. Short sentences, no marketing. Every command must be copy-pasteable from the repository root and must work as written. Sections, in this order:
+
+1. Title, one-line description, and a CI badge for github.com/gartox/sezzle-calculator (the repository is not pushed yet; use the standard workflow badge URL for a workflow named CI on main).
+2. What it does: the seven operations in one line, the stack in one line (Go 1.26 standard library, React 19 with TypeScript and Vite, Playwright, Docker).
+3. Quick start, three ways, each in its own subsection with prerequisites and commands:
+   - Docker: docker compose up --build, then open http://localhost:8080. Also the plain docker build and docker run equivalents.
+   - Local build: Go 1.26 and Node 26, make run, open http://localhost:8080.
+   - Development with hot reload: terminal one runs the Go server, terminal two runs npm run dev in frontend, open http://localhost:5173; explain in one sentence that Vite proxies /api to port 8080.
+4. Project layout: a short tree with one line per top-level directory and the key packages.
+5. API: the endpoint, a request and a success response, a table of error codes with HTTP status and when each occurs (INVALID_JSON, INVALID_OPERATION, INVALID_OPERAND, DIVISION_BY_ZERO, NEGATIVE_SQRT, RESULT_OVERFLOW, METHOD_NOT_ALLOWED, NOT_FOUND), the health endpoint, and curl examples for: add, sqrt, percent, divide by zero, unknown operation, malformed body, GET on the endpoint. Show the exact response each returns. Mention docs/api.http for the VS Code and JetBrains clients.
+6. Tests: unit tests per layer and the make targets; how coverage is produced and where backend/coverage.txt and frontend/coverage.txt come from; state the per-package numbers honestly, including that cmd/server has no unit tests and is covered by the end-to-end suite instead; end-to-end with Playwright: what it covers, make e2e, that it starts the stack itself or reuses a server on port 8090 such as the container; what CI runs.
+7. Design decisions, one short paragraph each, with the alternative considered where there was one: single endpoint with an operation enum instead of one route per operation; standard library only; the calculator package is pure and the handler only maps errors to status codes; the error envelope and the 400 versus 422 split; numeric precision: float64 with rounding to 12 significant digits, why that is acceptable for a calculator and why money would need arbitrary-precision decimals; the semantics chosen for percent, sqrt and power; no CORS because development uses the Vite proxy and production is same-origin; one binary serving the UI and the API; distroless image with a Go health probe; Playwright for both browser and API end-to-end tests.
+8. Assumptions and limitations: operands are JSON numbers (no strings, no BigInt), results outside float64 are reported as RESULT_OVERFLOW, no authentication or rate limiting, no persistence, single instance.
+9. Prompts: one sentence pointing to PROMPTS.md.
+
+Do not state how long the work took; that goes in the submission form. Do not mention AI tooling anywhere in the README.
+
+## Makefile
+
+Add a help target as the default that lists the targets with their comments, so make with no arguments is self-documenting.
+
+## Verification before you report
+
+Run every command in the README exactly as written, from the repository root, in the order they appear, and fix the README or the Makefile if any differs. Confirm the curl examples return exactly the responses shown. make test and make e2e must pass.
+
+Commit in two steps: README, Makefile help target. English messages, no mention of tooling. Do not push.
+
+Report which commands you ran and anything you had to correct, then stop and wait for prompt 7.
+```
+
+Result: README with the nine sections and a self-documenting Makefile (`make` prints every target with its comment). Every README command was run from the repository root in order: `docker compose up --build`, `docker build` and `docker run`, `make run` from a wiped tree (`npm ci`, bundle and binary rebuilt), the two hot-reload terminals with a request through the Vite proxy, the eight curl examples compared byte for byte with the responses shown, `make test`, `make coverage`, `make e2e-install`, `make e2e` and plain `make`. Two Makefile corrections came out of it: frontend targets now install `node_modules` when missing so `make run` works on a clean machine, and `frontend/coverage.txt` keeps only the coverage table so it no longer changes with timestamps on every run.
