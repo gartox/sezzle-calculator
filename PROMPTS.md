@@ -130,3 +130,99 @@ Report the test and coverage output for the frontend, the smoke test result and 
 ```
 
 Result: six commits (scaffold, API client, Calculator component, App test, stylesheet, Makefile and coverage). The current Vite react-ts template ships oxlint instead of ESLint, so the template's linter was kept and `npm run lint` passes with it. Frontend tests: 21 passing, 100% statements, branches, functions and lines. Smoke test from the repository root confirmed the Go binary serves `index.html`, the hashed JS bundle and `POST /api/v1/calculate` together.
+
+## 4. Packaging and CI: health endpoint, Dockerfile, Compose, GitHub Actions
+
+Tool: Claude Code.
+
+```text
+Prompt 4. Frontend reviewed and accepted as is; oxlint instead of ESLint is fine. Now packaging and CI. Append this whole message verbatim to PROMPTS.md as prompt 4.
+
+## Health endpoint
+
+Add GET /api/v1/health to the httpapi package returning 200 {"status":"ok"} with the JSON content type. Any other method on that path returns 405 through the same envelope as the rest. Add httptest cases for both. This is what Docker and Compose use for health checks.
+
+## Dockerfile
+
+Multi-stage, at the repository root:
+1. Frontend build stage on node:26-alpine: copy frontend/package.json and package-lock.json first, npm ci, then copy the rest of frontend/ and npm run build.
+2. Backend build stage on golang:1.26-alpine: copy backend/go.mod first and run go mod download, then copy backend/ and build a static binary with CGO_ENABLED=0 and -trimpath -ldflags="-s -w".
+3. Final stage on gcr.io/distroless/static-debian12:nonroot. Copy the binary to /app/server and the built frontend to /app/frontend/dist. Set WORKDIR /app, ENV PORT=8080 and STATIC_DIR=/app/frontend/dist, EXPOSE 8080, run as the nonroot user, ENTRYPOINT the binary.
+
+Add a .dockerignore that excludes .git, node_modules, dist, bin, coverage files and markdown except what the build needs.
+
+## docker-compose.yml
+
+One service, calculator, built from the Dockerfile, port 8080 mapped to 8080, restart unless-stopped, and a healthcheck that hits the health endpoint. The distroless image has no shell or curl, so implement the healthcheck in a way that works there, for example a tiny Go health probe compiled into the image as a second binary and invoked by the healthcheck, or document why the healthcheck lives in Compose only if that is simpler. Choose the simplest option that actually works and explain the choice in a comment.
+
+## CI
+
+.github/workflows/ci.yml running on push and pull_request to main, with three jobs:
+- backend: actions/setup-go with go-version-file backend/go.mod; check that gofmt -l prints nothing (fail if it does), go vet ./..., go test ./... -race -cover.
+- frontend: actions/setup-node with node 26 and npm cache keyed on frontend/package-lock.json; npm ci, npm run typecheck, npm run lint, npm test, npm run build.
+- docker: docker/build-push-action or a plain docker build with push disabled, so a broken Dockerfile fails the pipeline.
+Use pinned major versions of the official actions. Keep the workflow short.
+
+## Makefile
+
+Add docker-build and docker-run targets. docker-run maps port 8080 and removes the container on exit.
+
+## Verification before you report
+
+docker build must succeed. Run the container, confirm GET / returns the built UI, POST /api/v1/calculate returns a result, GET /api/v1/health returns ok, and docker stop ends the container quickly because SIGTERM is handled. If the Docker daemon is not running on this machine, say so explicitly instead of skipping silently. Run make test once more to confirm nothing regressed.
+
+Commit in steps: health endpoint with tests, Dockerfile with .dockerignore and compose, CI workflow, Makefile targets. English messages, no mention of tooling. Do not push.
+
+Report the docker build and run results, the health check behaviour and the commit list, then stop and wait for prompt 5.
+```
+
+Result: four commits plus a refreshed backend coverage report. The health endpoint answers GET with `{"status":"ok"}` and 405 otherwise; a second tiny Go binary, `cmd/healthcheck`, serves as the container health check because distroless has no shell. `docker build` produced a 13.6 MB image; the container served the UI, the API and the health endpoint as `nonroot`, reported `healthy` after the first 30 s interval, and `docker stop` returned in 0.35 s with exit code 0. The CI actions were pinned to their current majors (checkout v7, setup-go v7, setup-node v7, build-push-action v7).
+
+## 5. End-to-end tests with Playwright, request file for reviewers
+
+Tool: Claude Code.
+
+```text
+Prompt 5. First finish the container verification from prompt 4 and report it. Then add end-to-end tests. Append this whole message verbatim to PROMPTS.md as prompt 5.
+
+## End-to-end tests with Playwright
+
+Create a separate top-level package e2e/ with its own package.json so the frontend dependencies stay clean. Dev dependencies: @playwright/test and typescript. Chromium only. Scripts: test (playwright test) and install-browsers (playwright install --with-deps chromium).
+
+playwright.config.ts:
+- baseURL http://127.0.0.1:8090.
+- webServer that builds and starts the real stack: from the repository root, build the frontend (npm ci and npm run build in frontend/ if dist is missing), build the Go binary, and start it with PORT=8090 and STATIC_DIR=frontend/dist. Reuse an existing server when one is already listening, so a developer can also run the tests against a running container on that port. Timeout generous enough for a cold build.
+- retries 0 locally, 1 in CI. Trace on first retry. Reporter list locally, github plus html in CI.
+
+tests/ui.spec.ts, three tests through the browser:
+1. Add 2 and 3 shows the result 5 in the result region.
+2. Divide 1 by 0 shows the backend message in the alert and no result.
+3. Selecting Square root hides the b input and sqrt of 16 shows 4.
+Use accessible locators (getByLabel, getByRole), no CSS selectors or test ids.
+
+tests/api.spec.ts, using Playwright's request fixture against the same server:
+1. GET /api/v1/health returns 200 and {"status":"ok"}.
+2. POST add 0.1 and 0.2 returns 200 and result 0.3.
+3. POST divide by zero returns 422 with code DIVISION_BY_ZERO.
+4. POST an unknown operation returns 400 with code INVALID_OPERATION.
+5. GET on /api/v1/calculate returns 405 with code METHOD_NOT_ALLOWED and an Allow header.
+6. POST a malformed body returns 400 with code INVALID_JSON.
+
+## Request file for reviewers
+
+Add docs/api.http with one request per case above, plus sqrt and percent, in the format the VS Code REST Client and JetBrains HTTP client understand, with a variable for the base URL defaulting to http://localhost:8080. Keep it short and commented so it reads as documentation.
+
+## CI and Makefile
+
+Add an e2e job to .github/workflows/ci.yml that sets up Go and Node, installs e2e dependencies, installs Chromium with system deps, and runs the Playwright tests. Upload the Playwright report as an artifact on failure. Add e2e-install and e2e targets to the Makefile, and make e2e not part of make test (unit tests stay fast); document that in the Makefile help comments.
+
+## Verification before you report
+
+npm ci and npx playwright install chromium in e2e/, then npm test there from a clean state with no server running, so the webServer path is exercised. Then run it once more against the running Docker container on port 8090 to confirm the reuse path. make test must still pass.
+
+Commit in steps: e2e package with config, UI spec, API spec, api.http, CI job and Makefile targets. English messages, no mention of tooling. Do not push.
+
+Report the Playwright output for both runs and the commit list, then stop and wait for prompt 6.
+```
+
+Result: five commits. Playwright 1.64 with Chromium only, a start script that builds the frontend when `dist` is missing and compiles the Go binary, and `reuseExistingServer` so a running container on port 8090 is used instead. Cold run: 9 passed in 12.9 s including the full build; run against the Docker container: 9 passed in 1.7 s. `@types/node` was added to the e2e package so `tsc` can type `process.env`.
