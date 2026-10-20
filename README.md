@@ -10,6 +10,21 @@ Seven operations: add, subtract, multiply, divide, power, square root and percen
 
 Stack: Go 1.26.10 standard library for the API, React 19 with TypeScript and Vite for the UI (Node 24 or newer), Playwright for end-to-end tests, Docker for packaging.
 
+## Scope
+
+The assignment asked for a calculator, unit tests with coverage, this README, the prompts used, and optionally a Dockerfile. All of that is here:
+
+- **Required.** The Go API with seven operations and edge-case handling, the React UI with validation and basic mobile support, unit tests and committed coverage reports for both layers, this README, [PROMPTS.md](PROMPTS.md), and a Dockerfile with Compose.
+
+Beyond that, each addition answers a question a payments company asks before trusting a service:
+
+- **End-to-end tests.** Unit tests cannot show that the built UI, the binary and the container work together; Playwright checks that on every change.
+- **Security hardening and scanning.** Strict input decoding, response headers, a non-root distroless image and dependency, standard-library and image scans in CI, because a vulnerable dependency or a permissive parser is a finding in any audit.
+- **OpenAPI with generated types.** One contract that the server serves, the frontend types are generated from and a test holds the Go code to, so client and server cannot drift silently.
+- **Rate limiting.** A public endpoint without a limit is the first thing abuse finds; a per-IP token bucket is the smallest useful protection.
+- **Request IDs and an access log.** When a customer reports a failure, support needs to find that exact request; the ID in the error shown to the user makes that possible.
+- **CI and image publishing.** Every pull request runs lint, format, tests, scans and the image build, and `main` publishes the image, so what is reviewed is what ships.
+
 ## Quick start
 
 All commands run from the repository root. The three options are independent; pick one.
@@ -275,9 +290,9 @@ Each layer has its own suite. Both run with:
 make test
 ```
 
-Backend (`make backend-test`): table-driven tests in `internal/calculator` for every operation, negative and large numbers, rounding, division by zero, negative square roots, overflow, NaN and infinite operands; `httptest` cases in `internal/httpapi` for the happy path and every error code, including empty, oversized and wrongly typed bodies. They run with the race detector.
+Backend (`make backend-test`): table-driven tests in `internal/calculator` for every operation, negative and large numbers, rounding, negative zero, underflow, division by zero, negative square roots, overflow, NaN and infinite operands; `httptest` cases in `internal/httpapi` for the happy path and every error code, including empty, oversized, wrongly typed and non-JSON bodies, repeated and wrongly cased keys, rate limiting under concurrent load, request IDs and the access log. They run with the race detector.
 
-Frontend (`make frontend-test`): Vitest with Testing Library. The API client is tested with a mocked `fetch` for the success path, each error path and the exact request it sends. The `Calculator` component is tested with the client mocked: rendering, validation, result and error display, the hidden `b` input for square root, the disabled button while a request is pending, and clearing of stale output.
+Frontend (`make frontend-test`): Vitest with Testing Library. The API client is tested with a mocked `fetch` for the success path, each error path and the exact request it sends. The `Calculator` component is tested with the client mocked: rendering, validation, result display, the alert for every error code, the hidden `b` input for square root, the disabled button while a request is pending, and clearing of stale output. `NumberField` has its own accessibility test.
 
 ### Coverage
 
@@ -289,10 +304,10 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 
 | Package | Coverage | Note |
 |---|---|---|
-| `backend/internal/calculator` | 96.9% | The only uncovered branch is an unreachable fallback in `Round`. |
+| `backend/internal/calculator` | 97.1% | The only uncovered branch is an unreachable fallback in `Round`. |
 | `backend/internal/httpapi` | 100% | Includes the rate limiter (with a fake clock), request IDs, the access log and the OpenAPI contract test. |
 | `backend/cmd/healthcheck` | 57.1% | `check` is fully tested; `main` is not. |
-| `backend/cmd/server` | 47.3% | The security headers middleware, the static handler (including traversal attempts), the logger and the environment parsing are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the Docker verification exercise it. |
+| `backend/cmd/server` | 48.7% | The security headers middleware, the static handler (including traversal attempts, missing assets and directory requests), the logger and the environment parsing are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the Docker verification exercise it. |
 | `frontend/src` | 100% | Statements, branches, functions and lines. |
 
 ### End-to-end
@@ -379,6 +394,8 @@ Deliberately out of scope, because they belong to the deployment in front of the
 
 - Operands are JSON numbers. Strings, BigInt and numeric literals outside the `float64` range are rejected as `INVALID_JSON`.
 - Results that are infinite or not a number are reported as `RESULT_OVERFLOW` rather than returned.
+- Every result is rounded to 12 significant digits, including integers: `9007199254740993 + 0` returns `9007199254740000`. Results that underflow below the smallest double become `0`, and negative zero is returned as `0`.
+- Operation names and request keys are exact and lowercase. `ADD`, `" add "` and `"A"` are rejected rather than guessed at.
 - No authentication or authorization. Calculations are rate limited per IP and per instance only, and the request body is capped at 1 MiB.
 - No persistence: every request is independent and nothing is stored.
 - Single instance. The only state is the in-memory rate limit buckets, so several replicas behind a load balancer would work but would each apply the limit separately; nothing here sets that up.
