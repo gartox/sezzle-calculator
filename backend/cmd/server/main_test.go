@@ -15,6 +15,7 @@ func TestSpaHandler(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "index.html"), "<h1>index</h1>")
 	mustWrite(t, filepath.Join(dir, "assets", "app.js"), "console.log(1)")
+	mustWrite(t, filepath.Join(dir, "nested", "file.txt"), "nested")
 	// A file next to the static directory must never be reachable.
 	mustWrite(t, filepath.Join(filepath.Dir(dir), "outside.txt"), "secret")
 
@@ -29,6 +30,10 @@ func TestSpaHandler(t *testing.T) {
 		{name: "root serves index", path: "/", wantCode: 200, wantBody: "<h1>index</h1>"},
 		{name: "existing asset", path: "/assets/app.js", wantCode: 200, wantBody: "console.log(1)"},
 		{name: "unknown path falls back to index", path: "/some/client/route", wantCode: 200, wantBody: "<h1>index</h1>"},
+		{name: "missing asset is a 404, not index", path: "/assets/index-OLDHASH.js", wantCode: 404, wantBody: "404 page not found"},
+		{name: "assets directory is not listed", path: "/assets/", wantCode: 404, wantBody: "404 page not found"},
+		{name: "assets without slash is not listed", path: "/assets", wantCode: 404, wantBody: "404 page not found"},
+		{name: "other directories fall back to index", path: "/nested", wantCode: 200, wantBody: "<h1>index</h1>"},
 		// net/http refuses any path that still contains ".." after decoding,
 		// so a traversal attempt is answered with 400 and never reads a file.
 		{name: "dot segments are rejected", path: "/../outside.txt", wantCode: 400, wantBody: "invalid URL path"},
@@ -132,6 +137,26 @@ func TestRateLimitFromEnv(t *testing.T) {
 		}
 		if !tt.wantErr && (rps != tt.wantRPS || burst != tt.wantBurst) {
 			t.Fatalf("rps=%q burst=%q: got %v, %d", tt.rps, tt.burst, rps, burst)
+		}
+	}
+}
+
+func TestMissingAssetIsNotCachedForever(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "index.html"), "<h1>index</h1>")
+	mustWrite(t, filepath.Join(dir, "assets", "app.js"), "console.log(1)")
+	handler := secureHeaders(spaHandler(dir))
+
+	for path, want := range map[string]string{
+		"/assets/app.js":     cacheImmutable,
+		"/assets/missing.js": cacheNone,
+		"/assets/":           cacheNone,
+		"/some/client/route": cacheNone,
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if got := rec.Header().Get("Cache-Control"); got != want {
+			t.Errorf("%s: Cache-Control = %q, want %q (status %d)", path, got, want, rec.Code)
 		}
 	}
 }

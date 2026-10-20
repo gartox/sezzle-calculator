@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -98,18 +98,27 @@ func run() error {
 	return nil
 }
 
-// spaHandler serves files from dir and falls back to index.html for paths
-// that do not exist, so client-side routes resolve to the application.
+// spaHandler serves files from dir. Paths that do not exist fall back to
+// index.html so client-side routes resolve to the application, except under
+// /assets/: a missing hashed file must be a 404, or a browser asking for an old
+// bundle after a deploy would cache index.html as JavaScript for a year.
+// Directories other than the root are never listed.
 func spaHandler(dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 	index := filepath.Join(dir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requested := filepath.Join(dir, filepath.FromSlash(path.Clean("/"+r.URL.Path)))
-		if _, err := os.Stat(requested); errors.Is(err, fs.ErrNotExist) {
+		clean := path.Clean("/" + r.URL.Path)
+		info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(clean)))
+		switch {
+		case err == nil && !info.IsDir(), clean == "/":
+			files.ServeHTTP(w, r)
+		case strings.HasPrefix(clean, "/assets/") || clean == "/assets":
+			// The middleware marked /assets/ immutable; a 404 must not be.
+			w.Header().Set("Cache-Control", cacheNone)
+			http.NotFound(w, r)
+		default:
 			http.ServeFile(w, r, index)
-			return
 		}
-		files.ServeHTTP(w, r)
 	})
 }
 
