@@ -1,14 +1,15 @@
 BACKEND := backend
 FRONTEND := frontend
+E2E := e2e
 BIN := bin/server
 IMAGE := sezzle-calculator
 
 .PHONY: test coverage run build clean \
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
-        docker-build docker-run
+        docker-build docker-run e2e-install e2e
 
-## test: run the tests of both layers
+## test: run the unit tests of both layers (fast; end-to-end tests are a separate target, see e2e)
 test: backend-test frontend-test
 
 ## coverage: run both test suites and write backend/coverage.txt and frontend/coverage.txt
@@ -61,3 +62,14 @@ docker-build:
 ## docker-run: build the image and run it on port 8080, removing the container on exit
 docker-run: docker-build
 	docker run --rm -p 8080:8080 $(IMAGE)
+
+# End-to-end (Playwright). Not part of `make test`: it builds the whole stack
+# and drives a real browser, so it is slower and needs Chromium installed.
+
+## e2e-install: install the end-to-end test dependencies and Chromium
+e2e-install:
+	cd $(E2E) && npm ci && npx playwright install chromium
+
+## e2e: build the stack and run the browser and API tests against it on port 8090
+e2e:
+	cd $(E2E) && npm test
