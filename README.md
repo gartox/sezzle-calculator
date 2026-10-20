@@ -311,7 +311,7 @@ Then:
 make e2e
 ```
 
-Playwright starts the stack itself on port 8090, building the frontend and the binary when needed. If something is already listening on 8090, for example the container started with `docker run --rm -p 8090:8080 sezzle-calculator`, the tests run against that instead. The suite is deliberately not part of `make test` so unit tests stay fast.
+Playwright starts the stack itself on port 8090, rebuilding the frontend bundle and the binary first so it never tests stale code. If something is already listening on 8090, for example the container started with `docker run --rm -p 8090:8080 sezzle-calculator`, the tests run against that instead. The suite is deliberately not part of `make test` so unit tests stay fast.
 
 ### CI
 
