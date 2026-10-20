@@ -62,6 +62,20 @@ cd frontend && npm ci && npm run dev
 
 Open http://localhost:5173. The Vite dev server proxies every `/api` request to the Go server on port 8080, so the browser stays same-origin and no CORS setup is needed. The Go server logs that no frontend build was found and serves the API only; that is expected here, Vite serves the UI.
 
+### Deploy
+
+CI publishes the image to GitHub Container Registry automatically on every push to `main`, once all the other jobs have passed, tagged `latest` and with the commit SHA.
+
+```bash
+docker pull ghcr.io/gartox/sezzle-calculator:latest
+```
+
+```bash
+docker run --rm -p 8080:8080 ghcr.io/gartox/sezzle-calculator:latest
+```
+
+Open http://localhost:8080. To pin a build, replace `latest` with the commit SHA shown in the `publish` job.
+
 ## Project layout
 
 ```
@@ -255,7 +269,23 @@ Playwright starts the stack itself on port 8090, building the frontend and the b
 
 ### CI
 
-The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with five jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, typecheck, lint, tests, build, as a matrix on Node 24 and 26), `docker` (the image builds without being pushed), `e2e` (Playwright on Chromium with Node 24, with the HTML report uploaded as an artifact on failure) and `security` (the scans described under [Security](#security)).
+The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with six jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, typecheck, lint, format check, tests, build, as a matrix on Node 24 and 26), `docker` (the image builds without being pushed), `e2e` (lint, format check and Playwright on Chromium with Node 24, with the HTML report uploaded as an artifact on failure), `security` (the scans described under [Security](#security)) and `publish` (pushes to `main` only, after the others pass; see [Deploy](#deploy)).
+
+## Code style
+
+```bash
+make lint
+```
+
+```bash
+make format
+```
+
+```bash
+make format-check
+```
+
+`lint` runs `gofmt` and `go vet` on the backend and oxlint in `frontend/` and `e2e/`; `format` runs `gofmt -w` and Prettier (`--write`) in both packages; `format-check` fails if either tool would change a file. The shared Prettier configuration is `.prettierrc` at the repository root: no semicolons, single quotes, print width 100, trailing commas. oxlint finds bugs (unused values, hook misuse, unsafe patterns) and Prettier owns formatting, so neither tool has an opinion the other would fight. Both checks run in CI before the tests, so a pull request with lint or formatting violations fails fast.
 
 ## Design decisions
 
