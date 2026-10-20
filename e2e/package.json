@@ -9,12 +9,14 @@
   "scripts": {
     "test": "playwright test",
     "install-browsers": "playwright install --with-deps chromium",
+    "lint": "oxlint",
     "format": "prettier --write . --ignore-path ../.prettierignore",
     "format:check": "prettier --check . --ignore-path ../.prettierignore"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
+    "oxlint": "^1.89.0",
     "prettier": "^3.9.10",
     "typescript": "^7.0.2"
   }

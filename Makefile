@@ -9,7 +9,7 @@ IMAGE := sezzle-calculator
 
 .DEFAULT_GOAL := help
 
-.PHONY: help test coverage build run clean \
+.PHONY: help test coverage build run clean lint format format-check \
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
         e2e-install e2e docker-build docker-run
@@ -36,6 +36,25 @@ build: frontend-build backend-build
 ## run: build everything and start the server on port 8080, serving frontend/dist
 run: build
 	./$(BIN)
+
+## lint: gofmt check and go vet on the backend, oxlint in frontend and e2e
+lint: $(FRONTEND)/node_modules $(E2E)/node_modules
+	cd $(BACKEND) && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt would change:"; echo "$$unformatted"; exit 1; fi
+	cd $(BACKEND) && go vet ./...
+	cd $(FRONTEND) && npm run lint
+	cd $(E2E) && npm run lint
+
+## format: gofmt -w on the backend and prettier --write in frontend and e2e
+format: $(FRONTEND)/node_modules $(E2E)/node_modules
+	cd $(BACKEND) && gofmt -w .
+	cd $(FRONTEND) && npm run format
+	cd $(E2E) && npm run format
+
+## format-check: fail if gofmt or Prettier would change any file (what CI runs)
+format-check: $(FRONTEND)/node_modules $(E2E)/node_modules
+	cd $(BACKEND) && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt would change:"; echo "$$unformatted"; exit 1; fi
+	cd $(FRONTEND) && npm run format:check
+	cd $(E2E) && npm run format:check
 
 ## clean: remove build and coverage artifacts
 clean:
