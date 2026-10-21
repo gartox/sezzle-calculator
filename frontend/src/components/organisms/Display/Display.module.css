@@ -1,0 +1,9 @@
+.display {
+  display: grid;
+  gap: var(--space-1);
+  min-height: 132px;
+  align-content: end;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-display);
+}

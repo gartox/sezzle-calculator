@@ -1,0 +1,41 @@
+.keypad {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.functions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.functions > * {
+  min-height: 44px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.grid > *,
+.functions > * {
+  width: 100%;
+  min-width: 0;
+}
+
+.power sup {
+  font-size: 0.7em;
+}
+
+/* From 900 px the history panel is always beside the keypad. */
+@media (min-width: 900px) {
+  .functions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .historyToggle {
+    display: none;
+  }
+}
