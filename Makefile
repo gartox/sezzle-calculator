@@ -14,7 +14,7 @@ IMAGE := sezzle-calculator
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
         e2e-install e2e docker-build docker-run \
-        storybook storybook-build storybook-test
+        storybook storybook-build storybook-test design-screenshots
 
 ## help: list the available targets (default)
 help:
@@ -113,6 +113,10 @@ storybook: $(FRONTEND)/node_modules
 ## storybook-build: build the static Storybook into frontend/storybook-static
 storybook-build: $(FRONTEND)/node_modules
 	cd $(FRONTEND) && npm run build-storybook
+
+## design-screenshots: rebuild Storybook and capture the review screenshots into docs/design/
+design-screenshots: $(FRONTEND)/node_modules
+	cd $(FRONTEND) && npx playwright install chromium && npm run capture:design
 
 ## storybook-test: run every story as a browser test with accessibility checks
 storybook-test: $(FRONTEND)/node_modules

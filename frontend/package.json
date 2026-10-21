@@ -19,7 +19,8 @@
     "format:check": "prettier --check . --ignore-path ../.prettierignore",
     "storybook": "storybook dev --port 6006",
     "build-storybook": "storybook build --output-dir storybook-static",
-    "test-storybook": "vitest run --project storybook"
+    "test-storybook": "vitest run --project storybook",
+    "capture:design": "npm run build-storybook && node scripts/capture-design.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",
