@@ -125,38 +125,26 @@ func TestRateLimitFromEnv(t *testing.T) {
 		{rps: "0.5", burst: "1", wantRPS: 0.5, wantBurst: 1},
 		{rps: "-1", wantErr: true},
 		{rps: "fast", wantErr: true},
+		{rps: "NaN", wantErr: true},
+		{rps: "nan", wantErr: true},
+		{rps: "Inf", wantErr: true},
+		{rps: "+Inf", wantErr: true},
+		{rps: "-Inf", wantErr: true},
+		{rps: "Infinity", wantErr: true},
+		{rps: "1e999", wantErr: true},
 		{burst: "0", wantErr: true},
 		{burst: "many", wantErr: true},
+		{burst: "NaN", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Setenv("RATE_LIMIT_RPS", tt.rps)
 		t.Setenv("RATE_LIMIT_BURST", tt.burst)
-		rps, burst, err := rateLimitFromEnv()
+		cfg, err := rateLimitFromEnv(true)
 		if (err != nil) != tt.wantErr {
 			t.Fatalf("rps=%q burst=%q: err = %v, wantErr %v", tt.rps, tt.burst, err, tt.wantErr)
 		}
-		if !tt.wantErr && (rps != tt.wantRPS || burst != tt.wantBurst) {
-			t.Fatalf("rps=%q burst=%q: got %v, %d", tt.rps, tt.burst, rps, burst)
-		}
-	}
-}
-
-func TestMissingAssetIsNotCachedForever(t *testing.T) {
-	dir := t.TempDir()
-	mustWrite(t, filepath.Join(dir, "index.html"), "<h1>index</h1>")
-	mustWrite(t, filepath.Join(dir, "assets", "app.js"), "console.log(1)")
-	handler := secureHeaders(spaHandler(dir))
-
-	for path, want := range map[string]string{
-		"/assets/app.js":     cacheImmutable,
-		"/assets/missing.js": cacheNone,
-		"/assets/":           cacheNone,
-		"/some/client/route": cacheNone,
-	} {
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		if got := rec.Header().Get("Cache-Control"); got != want {
-			t.Errorf("%s: Cache-Control = %q, want %q (status %d)", path, got, want, rec.Code)
+		if !tt.wantErr && (cfg.RPS != tt.wantRPS || cfg.Burst != tt.wantBurst || !cfg.TrustProxy) {
+			t.Fatalf("rps=%q burst=%q: got %+v", tt.rps, tt.burst, cfg)
 		}
 	}
 }

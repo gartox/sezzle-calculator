@@ -44,41 +44,64 @@ type bucket struct {
 	last   time.Time
 }
 
-// NewRateLimiter returns a limiter allowing rps requests per second with
-// bursts of up to burst, and starts the goroutine that evicts idle clients.
-// It returns nil, meaning no limit, when rps is zero or negative. Call Stop on
-// shutdown. See ClientIP for what trustProxy changes.
-func NewRateLimiter(rps float64, burst int, trustProxy bool) *RateLimiter {
-	l := newRateLimiter(rps, burst, trustProxy, time.Now)
-	if l == nil {
-		return nil
+// RateLimitConfig configures a RateLimiter.
+type RateLimitConfig struct {
+	// RPS is the sustained rate per client in requests per second. Zero
+	// disables rate limiting; it must otherwise be finite and positive.
+	RPS float64
+	// Burst is how many requests a client may send at once. At least 1.
+	Burst int
+	// TrustProxy takes the client IP from X-Forwarded-For; see ClientIP.
+	TrustProxy bool
+}
+
+// Validate reports a configuration that would not limit sensibly. NaN would
+// poison every refill after the first request and +Inf would never throttle,
+// so both are rejected rather than trusted.
+func (c RateLimitConfig) Validate() error {
+	if math.IsNaN(c.RPS) || math.IsInf(c.RPS, 0) || c.RPS < 0 {
+		return fmt.Errorf("rate limit: RPS must be a finite number >= 0, got %v", c.RPS)
+	}
+	if c.Burst < 1 {
+		return fmt.Errorf("rate limit: burst must be at least 1, got %d", c.Burst)
+	}
+	return nil
+}
+
+// NewRateLimiter returns a limiter for cfg and starts the goroutine that
+// evicts idle clients; call Stop on shutdown. It returns nil, meaning no
+// limit, when cfg.RPS is zero, and an error when cfg is invalid.
+func NewRateLimiter(cfg RateLimitConfig) (*RateLimiter, error) {
+	l, err := newRateLimiter(cfg, time.Now)
+	if l == nil || err != nil {
+		return nil, err
 	}
 	ticker := time.NewTicker(sweepInterval)
 	go func() {
 		l.run(ticker.C)
 		ticker.Stop()
 	}()
-	return l
+	return l, nil
 }
 
 // newRateLimiter builds a limiter without the sweeper goroutine, with an
 // injectable clock for tests.
-func newRateLimiter(rps float64, burst int, trustProxy bool, now func() time.Time) *RateLimiter {
-	if rps <= 0 {
-		return nil
+func newRateLimiter(cfg RateLimitConfig, now func() time.Time) (*RateLimiter, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
-	if burst < 1 {
-		burst = 1
+	if cfg.RPS == 0 {
+		return nil, nil
 	}
 	return &RateLimiter{
-		rps:        rps,
-		burst:      float64(burst),
-		trustProxy: trustProxy,
+		rps:        cfg.RPS,
+		burst:      float64(cfg.Burst),
+		trustProxy: cfg.TrustProxy,
 		now:        now,
 		buckets:    make(map[string]*bucket),
 		stop:       make(chan struct{}),
 		done:       make(chan struct{}),
-	}
+	}, nil
 }
 
 // Limit wraps next so that POST requests over a client's limit get 429 with a

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,13 +44,16 @@ func run() error {
 	logger := newLogger(os.Getenv("LOG_FORMAT"), os.Stderr)
 	slog.SetDefault(logger)
 
-	rps, burst, err := rateLimitFromEnv()
+	rateCfg, err := rateLimitFromEnv(trustProxy)
 	if err != nil {
 		return err
 	}
-	limiter := httpapi.NewRateLimiter(rps, burst, trustProxy)
+	limiter, err := httpapi.NewRateLimiter(rateCfg)
+	if err != nil {
+		return err
+	}
 	defer limiter.Stop()
-	slog.Info("rate limit", "rps", rps, "burst", burst, "enabled", limiter != nil, "trust_proxy", trustProxy)
+	slog.Info("rate limit", "rps", rateCfg.RPS, "burst", rateCfg.Burst, "enabled", limiter != nil, "trust_proxy", trustProxy)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", httpapi.NewHandler(limiter))
@@ -132,17 +136,20 @@ func newLogger(format string, w io.Writer) *slog.Logger {
 }
 
 // rateLimitFromEnv reads RATE_LIMIT_RPS (default 10, 0 disables the limit)
-// and RATE_LIMIT_BURST (default 20).
-func rateLimitFromEnv() (float64, int, error) {
+// and RATE_LIMIT_BURST (default 20). NaN and infinities parse as floats but
+// are rejected: NaN would break refills and +Inf would never throttle.
+func rateLimitFromEnv(trustProxy bool) (httpapi.RateLimitConfig, error) {
+	cfg := httpapi.RateLimitConfig{TrustProxy: trustProxy}
 	rps, err := strconv.ParseFloat(envOr("RATE_LIMIT_RPS", "10"), 64)
-	if err != nil || rps < 0 {
-		return 0, 0, fmt.Errorf("RATE_LIMIT_RPS must be a number >= 0, got %q", os.Getenv("RATE_LIMIT_RPS"))
+	if err != nil || math.IsNaN(rps) || math.IsInf(rps, 0) || rps < 0 {
+		return cfg, fmt.Errorf("RATE_LIMIT_RPS must be a finite number >= 0, got %q", os.Getenv("RATE_LIMIT_RPS"))
 	}
 	burst, err := strconv.Atoi(envOr("RATE_LIMIT_BURST", "20"))
 	if err != nil || burst < 1 {
-		return 0, 0, fmt.Errorf("RATE_LIMIT_BURST must be an integer >= 1, got %q", os.Getenv("RATE_LIMIT_BURST"))
+		return cfg, fmt.Errorf("RATE_LIMIT_BURST must be an integer >= 1, got %q", os.Getenv("RATE_LIMIT_BURST"))
 	}
-	return rps, burst, nil
+	cfg.RPS, cfg.Burst = rps, burst
+	return cfg, cfg.Validate()
 }
 
 func isDir(name string) bool {

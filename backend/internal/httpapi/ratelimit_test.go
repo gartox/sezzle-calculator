@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,7 +50,7 @@ func post(t *testing.T, h http.Handler, remote, forwarded string) *httptest.Resp
 
 func TestRateLimitBurstThenReject(t *testing.T) {
 	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(10, 20, false, clock.Now))
+	h := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 10, Burst: 20}, clock.Now))
 
 	for i := range 20 {
 		if rec := post(t, h, "203.0.113.1:1000", ""); rec.Code != http.StatusOK {
@@ -83,7 +84,7 @@ func TestRateLimitBurstThenReject(t *testing.T) {
 
 func TestRateLimitRefill(t *testing.T) {
 	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(10, 2, false, clock.Now))
+	h := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 10, Burst: 2}, clock.Now))
 	const ip = "203.0.113.2:1000"
 
 	post(t, h, ip, "")
@@ -113,7 +114,7 @@ func TestRateLimitRefill(t *testing.T) {
 
 func TestRateLimitRetryAfterRoundsUp(t *testing.T) {
 	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(0.4, 1, false, clock.Now)) // one token every 2.5 s
+	h := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 0.4, Burst: 1}, clock.Now)) // one token every 2.5 s
 	post(t, h, "203.0.113.3:1000", "")
 
 	rec := post(t, h, "203.0.113.3:1000", "")
@@ -127,7 +128,7 @@ func TestRateLimitRetryAfterRoundsUp(t *testing.T) {
 
 func TestRateLimitIsolatesClients(t *testing.T) {
 	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(1, 1, false, clock.Now))
+	h := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1}, clock.Now))
 
 	if rec := post(t, h, "198.51.100.1:1", ""); rec.Code != http.StatusOK {
 		t.Fatalf("first client: %d", rec.Code)
@@ -144,13 +145,13 @@ func TestRateLimitForwardedFor(t *testing.T) {
 	clock := newFakeClock()
 	const proxy = "10.0.0.1:443"
 
-	untrusted := NewHandler(newRateLimiter(1, 1, false, clock.Now))
+	untrusted := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1}, clock.Now))
 	post(t, untrusted, proxy, "198.51.100.10")
 	if rec := post(t, untrusted, proxy, "198.51.100.11"); rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("without TRUST_PROXY a spoofed X-Forwarded-For must not grant a new bucket, got %d", rec.Code)
 	}
 
-	trusted := NewHandler(newRateLimiter(1, 1, true, clock.Now))
+	trusted := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1, TrustProxy: true}, clock.Now))
 	post(t, trusted, proxy, "198.51.100.10")
 	if rec := post(t, trusted, proxy, "198.51.100.11"); rec.Code != http.StatusOK {
 		t.Fatalf("with TRUST_PROXY each forwarded client has its own bucket, got %d", rec.Code)
@@ -162,7 +163,7 @@ func TestRateLimitForwardedFor(t *testing.T) {
 
 func TestRateLimitEvictsIdleBuckets(t *testing.T) {
 	clock := newFakeClock()
-	l := newRateLimiter(10, 20, false, clock.Now)
+	l := mustLimiter(t, RateLimitConfig{RPS: 10, Burst: 20}, clock.Now)
 	l.allow("idle")
 	clock.Advance(2 * time.Minute)
 	l.allow("recent")
@@ -180,7 +181,7 @@ func TestRateLimitEvictsIdleBuckets(t *testing.T) {
 
 func TestRateLimitSweeperRunsOnTickAndStops(t *testing.T) {
 	clock := newFakeClock()
-	l := newRateLimiter(10, 20, false, clock.Now)
+	l := mustLimiter(t, RateLimitConfig{RPS: 10, Burst: 20}, clock.Now)
 	tick := make(chan time.Time)
 	go l.run(tick)
 
@@ -196,9 +197,9 @@ func TestRateLimitSweeperRunsOnTickAndStops(t *testing.T) {
 }
 
 func TestNewRateLimiterStartsAndStops(t *testing.T) {
-	l := NewRateLimiter(10, 20, false)
-	if l == nil {
-		t.Fatal("NewRateLimiter(10, 20) = nil, want a limiter")
+	l, err := NewRateLimiter(RateLimitConfig{RPS: 10, Burst: 20})
+	if l == nil || err != nil {
+		t.Fatalf("NewRateLimiter = %v, %v; want a limiter", l, err)
 	}
 	done := make(chan struct{})
 	go func() { l.Stop(); close(done) }()
@@ -210,32 +211,57 @@ func TestNewRateLimiterStartsAndStops(t *testing.T) {
 }
 
 func TestRateLimitDisabled(t *testing.T) {
-	for _, rps := range []float64{0, -1} {
-		l := NewRateLimiter(rps, 20, false)
-		if l != nil {
-			t.Fatalf("NewRateLimiter(%v) = %v, want nil", rps, l)
-		}
-		l.Stop() // safe on nil
-		h := NewHandler(l)
-		for i := range 50 {
-			if rec := post(t, h, "203.0.113.9:1", ""); rec.Code != http.StatusOK {
-				t.Fatalf("rps %v request %d: status %d, want 200", rps, i+1, rec.Code)
-			}
+	l, err := NewRateLimiter(RateLimitConfig{RPS: 0, Burst: 20})
+	if l != nil || err != nil {
+		t.Fatalf("NewRateLimiter(RPS 0) = %v, %v; want nil, nil", l, err)
+	}
+	l.Stop() // safe on nil
+	h := NewHandler(l)
+	for i := range 50 {
+		if rec := post(t, h, "203.0.113.9:1", ""); rec.Code != http.StatusOK {
+			t.Fatalf("request %d: status %d, want 200", i+1, rec.Code)
 		}
 	}
 }
 
-func TestRateLimitBurstFloor(t *testing.T) {
-	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(1, 0, false, clock.Now))
-	if rec := post(t, h, "203.0.113.4:1", ""); rec.Code != http.StatusOK {
-		t.Fatalf("a burst below 1 must still allow one request, got %d", rec.Code)
+func TestRateLimitConfigValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     RateLimitConfig
+		wantErr bool
+		wantNil bool
+	}{
+		{name: "valid", cfg: RateLimitConfig{RPS: 10, Burst: 20}},
+		{name: "fractional rate", cfg: RateLimitConfig{RPS: 0.5, Burst: 1}},
+		{name: "zero disables", cfg: RateLimitConfig{RPS: 0, Burst: 20}, wantNil: true},
+		{name: "NaN rate", cfg: RateLimitConfig{RPS: math.NaN(), Burst: 20}, wantErr: true},
+		{name: "infinite rate", cfg: RateLimitConfig{RPS: math.Inf(1), Burst: 20}, wantErr: true},
+		{name: "negative infinite rate", cfg: RateLimitConfig{RPS: math.Inf(-1), Burst: 20}, wantErr: true},
+		{name: "negative rate", cfg: RateLimitConfig{RPS: -1, Burst: 20}, wantErr: true},
+		{name: "zero burst", cfg: RateLimitConfig{RPS: 1, Burst: 0}, wantErr: true},
+		{name: "zero burst even when disabled", cfg: RateLimitConfig{RPS: 0, Burst: 0}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l, err := newRateLimiter(tt.cfg, time.Now)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && (l == nil) != tt.wantNil {
+				t.Fatalf("limiter = %v, want nil %v", l, tt.wantNil)
+			}
+			public, perr := NewRateLimiter(tt.cfg)
+			if (perr != nil) != tt.wantErr {
+				t.Fatalf("NewRateLimiter err = %v, wantErr %v", perr, tt.wantErr)
+			}
+			public.Stop()
+		})
 	}
 }
 
 func TestRateLimitSkipsOtherRoutesAndMethods(t *testing.T) {
 	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(1, 1, false, clock.Now))
+	h := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1}, clock.Now))
 	post(t, h, "203.0.113.5:1", "") // empties the bucket
 
 	for _, tc := range []struct{ method, path string }{
@@ -276,7 +302,7 @@ func TestRetryAfterSeconds(t *testing.T) {
 
 func TestRateLimitConcurrentRequests(t *testing.T) {
 	clock := newFakeClock()
-	h := NewHandler(newRateLimiter(1, 20, false, clock.Now))
+	h := NewHandler(mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 20}, clock.Now))
 
 	var allowed, limited atomic.Int64
 	var wg sync.WaitGroup
@@ -303,4 +329,14 @@ func TestRateLimitConcurrentRequests(t *testing.T) {
 	if allowed.Load() != 40 || limited.Load() != 160 {
 		t.Fatalf("allowed=%d limited=%d, want 40 and 160", allowed.Load(), limited.Load())
 	}
+}
+
+// mustLimiter builds a limiter with an injected clock and fails on bad config.
+func mustLimiter(t *testing.T, cfg RateLimitConfig, now func() time.Time) *RateLimiter {
+	t.Helper()
+	l, err := newRateLimiter(cfg, now)
+	if err != nil || l == nil {
+		t.Fatalf("newRateLimiter(%+v) = %v, %v", cfg, l, err)
+	}
+	return l
 }
