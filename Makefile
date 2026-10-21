@@ -44,8 +44,9 @@ build: frontend-build backend-build
 run: build
 	./$(BIN)
 
-## lint: gofmt check and go vet on the backend, oxlint in frontend and e2e
+## lint: supply-chain pins, gofmt and go vet on the backend, oxlint in frontend and e2e
 lint: $(FRONTEND)/node_modules $(E2E)/node_modules
+	scripts/check-supply-chain.sh .
 	cd $(BACKEND) && $(GOFMT_CHECK)
 	cd $(BACKEND) && go vet ./...
 	cd $(FRONTEND) && npm run lint
