@@ -123,8 +123,9 @@ jobs:
         working-directory: tools
         run: go tool govulncheck -C ../backend ./...
 
-  # The repository's own guards: the publish script against a fake docker,
-  # the supply-chain pin check and its fixtures, and the Makefile gofmt guard.
+  # The repository's own guards: the publish script against fake curl, docker
+  # and gh; the supply-chain and workflow checks with their fixtures; and the
+  # Makefile gofmt guard.
   scripts:
     runs-on: ubuntu-latest
     steps:
@@ -134,6 +135,8 @@ jobs:
           go-version-file: backend/go.mod
       - name: Check that actions, base images and tools are pinned
         run: scripts/check-supply-chain.sh .
+      - name: Check the publication path keeps its invariants
+        run: scripts/check-workflow.sh
       - name: Test the scripts
         run: make scripts-test
 

@@ -34,10 +34,11 @@ help:
 ## test: run the unit tests of both layers and the script tests (fast; end-to-end tests are `make e2e`)
 test: backend-test frontend-test scripts-test
 
-## scripts-test: test the publish script, the supply-chain check and the gofmt guard
+## scripts-test: test the publish script, the supply-chain and workflow checks, and the gofmt guard
 scripts-test:
 	scripts/publish_test.sh
 	scripts/check-supply-chain_test.sh
+	scripts/check-workflow_test.sh
 	scripts/gofmt-guard_test.sh
 
 ## coverage: run both unit suites and write backend/coverage.txt and frontend/coverage.txt
@@ -50,9 +51,10 @@ build: frontend-build backend-build
 run: build
 	./$(BIN)
 
-## lint: supply-chain pins, gofmt and go vet on the backend, oxlint in frontend and e2e
+## lint: supply-chain pins, publication workflow invariants, gofmt and go vet, oxlint in frontend and e2e
 lint: gofmt-check $(FRONTEND)/node_modules $(E2E)/node_modules
 	scripts/check-supply-chain.sh .
+	scripts/check-workflow.sh
 	cd $(BACKEND) && go vet ./...
 	cd $(FRONTEND) && npm run lint
 	cd $(E2E) && npm run lint
