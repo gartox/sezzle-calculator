@@ -102,6 +102,18 @@ describe('useKeyboardKeypad', () => {
     expect(press).toHaveBeenLastCalledWith({ type: 'equals' })
   })
 
+  it('makes Enter mean equals again after a click on the key that Tab reached', async () => {
+    const { press } = setup()
+    const first = element('button')
+    const second = element('button')
+    const user = userEvent.setup()
+    await user.click(first)
+    await user.tab()
+    await user.click(second)
+    fireEvent.keyDown(second, { key: 'Enter' })
+    expect(press).toHaveBeenLastCalledWith({ type: 'equals' })
+  })
+
   it('while paused, sends only Escape, to close the modal', () => {
     const { press, onPausedEscape, rerender } = setup({ paused: true })
     fireEvent.keyDown(document.body, { key: '7' })

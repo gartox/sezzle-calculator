@@ -50,6 +50,9 @@ export function useKeyboardKeypad({ press, paused = false, onPausedEscape }: Opt
 
     function onPointerDown() {
       lastInput = 'pointer'
+      // A click on the key that already has focus moves no focus, so no
+      // focusin follows; the key is now one the pointer used.
+      keyboardFocused = null
     }
     function onFocusIn(event: FocusEvent) {
       keyboardFocused = lastInput === 'keyboard' ? event.target : null

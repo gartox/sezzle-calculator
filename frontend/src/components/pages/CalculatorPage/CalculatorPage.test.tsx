@@ -346,6 +346,16 @@ describe('CalculatorPage', () => {
       expect(await screen.findByRole('button', { name: '20, copy' })).toBeInTheDocument()
     })
 
+    it('calculates on Enter after a key reached with Tab is then clicked', async () => {
+      const { user, press, key } = setup()
+      await press('1')
+      await user.tab()
+      expect(key('2')).toHaveFocus()
+      await user.click(key('2'))
+      await user.keyboard('+3{Enter}')
+      expect(await screen.findByRole('button', { name: '15, copy' })).toBeInTheDocument()
+    })
+
     it('lets Enter press a key that was reached with Tab, once', async () => {
       const { user, press, key, calculate } = setup()
       await press('1')
