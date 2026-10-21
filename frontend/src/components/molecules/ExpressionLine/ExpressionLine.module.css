@@ -1,3 +1,7 @@
+/*
+ * Right to left on the block puts the line's end, and so the ellipsis, on the
+ * left; the isolated span keeps the expression itself left to right.
+ */
 .line {
   min-height: 1.5em;
   margin: 0;
@@ -10,5 +14,10 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+  direction: rtl;
+}
+
+.text {
   direction: ltr;
+  unicode-bidi: isolate;
 }

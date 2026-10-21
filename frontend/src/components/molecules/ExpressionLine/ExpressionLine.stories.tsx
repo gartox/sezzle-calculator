@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, within } from 'storybook/test'
 import ExpressionLine from './ExpressionLine'
 
 const meta = {
@@ -22,8 +23,19 @@ export const PendingOperator: Story = { args: { expression: '2 + 3 ×' } }
 /** Percent reads as "a percent of b", the API's meaning. */
 export const Percent: Story = { args: { expression: '15 % of 200 =' } }
 export const SquareRoot: Story = { args: { expression: '√16 =' } }
+/** Too long to fit: clipped at the start, so the end that was just typed stays visible. */
 export const Long: Story = {
   args: { expression: '123,456,789,012,345 × 987,654,321,098,765 =' },
+  globals: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const text = within(canvasElement).getByText(/987,654,321,098,765 =$/)
+    const line = text.parentElement as HTMLElement
+    const shown = line.getBoundingClientRect()
+    const content = text.getBoundingClientRect()
+    await expect(content.width).toBeGreaterThan(shown.width)
+    await expect(content.right).toBeLessThanOrEqual(shown.right + 1)
+    await expect(content.left).toBeLessThan(shown.left)
+  },
 }
 
 export const Gallery: Story = {
