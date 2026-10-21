@@ -15,7 +15,7 @@ IMAGE := sezzle-calculator
 GOFMT_CHECK = unformatted="$$(gofmt -l .)" || { echo "gofmt failed"; exit 1; }; \
 	if [ -n "$$unformatted" ]; then echo "gofmt would change:"; echo "$$unformatted"; exit 1; fi
 
-.PHONY: help test coverage build run clean lint format format-check \
+.PHONY: help test coverage build run clean lint format format-check gofmt-check scripts-test \
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
         e2e-install e2e docker-build docker-run \
@@ -31,8 +31,14 @@ help:
 
 # Both layers
 
-## test: run the unit tests of both layers (fast; end-to-end tests are `make e2e`)
-test: backend-test frontend-test
+## test: run the unit tests of both layers and the script tests (fast; end-to-end tests are `make e2e`)
+test: backend-test frontend-test scripts-test
+
+## scripts-test: test the publish script, the supply-chain check and the gofmt guard
+scripts-test:
+	scripts/publish_test.sh
+	scripts/check-supply-chain_test.sh
+	scripts/gofmt-guard_test.sh
 
 ## coverage: run both unit suites and write backend/coverage.txt and frontend/coverage.txt
 coverage: backend-coverage frontend-coverage
@@ -45,12 +51,15 @@ run: build
 	./$(BIN)
 
 ## lint: supply-chain pins, gofmt and go vet on the backend, oxlint in frontend and e2e
-lint: $(FRONTEND)/node_modules $(E2E)/node_modules
+lint: gofmt-check $(FRONTEND)/node_modules $(E2E)/node_modules
 	scripts/check-supply-chain.sh .
-	cd $(BACKEND) && $(GOFMT_CHECK)
 	cd $(BACKEND) && go vet ./...
 	cd $(FRONTEND) && npm run lint
 	cd $(E2E) && npm run lint
+
+## gofmt-check: fail if gofmt cannot parse a file or would reformat one (BACKEND=dir to point it elsewhere)
+gofmt-check:
+	cd $(BACKEND) && $(GOFMT_CHECK)
 
 ## format: gofmt -w on the backend and prettier --write in frontend and e2e
 format: $(FRONTEND)/node_modules $(E2E)/node_modules
@@ -59,8 +68,7 @@ format: $(FRONTEND)/node_modules $(E2E)/node_modules
 	cd $(E2E) && npm run format
 
 ## format-check: fail if gofmt or Prettier would change any file (what CI runs)
-format-check: $(FRONTEND)/node_modules $(E2E)/node_modules
-	cd $(BACKEND) && $(GOFMT_CHECK)
+format-check: gofmt-check $(FRONTEND)/node_modules $(E2E)/node_modules
 	cd $(FRONTEND) && npm run format:check
 	cd $(E2E) && npm run format:check
 
