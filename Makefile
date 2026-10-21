@@ -19,7 +19,7 @@ GOFMT_CHECK = unformatted="$$(gofmt -l .)" || { echo "gofmt failed"; exit 1; }; 
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
         e2e-install e2e docker-build docker-run \
-        storybook storybook-build storybook-test design-screenshots
+        storybook storybook-build storybook-test design-screenshots smoke vulncheck
 
 ## help: list the available targets (default)
 help:
@@ -147,6 +147,14 @@ e2e: $(E2E)/node_modules
 ## docker-build: build the production image (frontend and server in one container)
 docker-build:
 	docker build -t $(IMAGE) .
+
+## smoke: build the image and smoke test the running container (health, a result, an error)
+smoke: docker-build
+	scripts/smoke-test.sh $(IMAGE)
+
+## vulncheck: scan the backend with the govulncheck version pinned in tools/go.mod
+vulncheck:
+	cd tools && go tool govulncheck -C ../backend ./...
 
 ## docker-run: build the image and run it on port 8080, removing the container on exit
 docker-run: docker-build
