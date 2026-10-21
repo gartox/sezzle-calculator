@@ -20,7 +20,7 @@ A keypad calculator in the layout people already know from their phone: four col
 - **Left to right.** Like a basic handheld calculator, each operator calculates what is already complete: `2 + 3 × 4 =` is `(2 + 3) × 4 = 20`, and pressing `×` already shows the intermediate `5`. Every step is one API call, so the UI never does arithmetic itself. Keys pressed while an answer is on its way are kept and applied in order when it arrives, so typing fast on a slow network loses nothing.
 - **Percent.** On its own, `15 % 200 =` reads "15 % of 200" and gives `30`, the API's meaning. Inside a chain it follows the handheld convention: after `+` or `−`, `%` turns the number into that percent of the running total, so `200 + 10 %` shows `200 + 20` and `=` gives `220`; after `×`, `÷` or `^` it makes the number a hundredth, so `200 × 10 % =` gives `20`. Either way the API does the arithmetic with its `percent` operation.
 - **Square root.** `√x` works on the current value straight away; after an operator it becomes the right operand (`9 + √16 =` is `13`).
-- **States.** The header pill shows Ready or Offline from the health endpoint and is re-checked after a network error and after the next successful calculation. Equals looks inactive until there is something to calculate, and shows a busy spinner only if an answer takes longer than 300 ms. A request not answered within 8 seconds stops with "The calculator did not answer.", and AC cancels a request in flight. An error replaces the value with a plain message and, when the API answered, a short `Ref` (the request ID, copied in full on click); the expression stays visible. When the request failed rather than the arithmetic (network, timeout, rate limit), the message says "Press = to try again" and equals sends it again; any other key starts over.
+- **States.** The header pill shows Ready or Offline from the health endpoint (a check not answered within 3 seconds reads Offline) and is re-checked after a network error and after the next successful calculation. Equals looks inactive until there is something to calculate, and shows a busy spinner only if an answer takes longer than 300 ms. A request not answered within 8 seconds stops with "The calculator did not answer.", and AC cancels a request in flight. An error replaces the value with a plain message and, when the API answered, a short `Ref` (the request ID, copied in full on click); the expression stays visible. When the request failed rather than the arithmetic (network, timeout, rate limit), the message says "Press = to try again" and equals sends it again; any other key starts over.
 - **History.** The last ten results, kept in `sessionStorage` for the tab only (the calculator still works if storage is blocked). Each entry records the whole chain, `2 + 3 × 4 = 20`, and choosing one puts its result back. From 900 px the panel sits beside the calculator. On phones it opens as a modal sheet: focus moves into it and stays there, the calculator behind it is inert and ignores the keyboard, and closing it (Close, Escape, the backdrop or choosing an entry) returns focus to the History toggle.
 - **Accessibility.** Every key has an accessible name, the active operator is marked with `aria-pressed` and an outline, results are announced politely with their expression in words ("2 plus 3 equals 5", "minus 30"), both themes meet WCAG AA contrast, and motion is reduced when the system asks for it.
 
@@ -30,12 +30,12 @@ The keyboard works as soon as the page loads, without clicking first, and the ma
 |---|---|
 | `0`–`9` | digits |
 | `.` or `,` | decimal point |
-| `+` `*` (or `x`) `/` | add, multiply, divide |
+| `+` `*` (or `x`, `X`) `/` | add, multiply, divide |
 | `-` | subtract; right after `×`, `÷`, `^` or `%` it starts a negative number instead (`5 * - 3` is `5 × −3`) |
 | `^` | power |
 | `%` | percent of, or percent in a chain (see above) |
-| `r` | square root |
-| `n` | toggle the sign |
+| `r` or `R` | square root |
+| `n` or `N` | toggle the sign |
 | Enter or `=` | equals, also after clicking a key with the mouse; only a key reached with Tab takes Enter itself, as any button does |
 | Backspace | delete the last digit |
 | Escape | clear all (there is no undo), or close the history sheet |
@@ -344,7 +344,7 @@ Frontend (`make frontend-test`): Vitest with Testing Library in jsdom. The keypa
 | Layer | Tests | Command |
 |---|---|---|
 | Backend (Go, with `-race`) | 60 tests, 257 with subtests | `make backend-test` |
-| Frontend unit (Vitest, jsdom) | 370 | `make frontend-test` |
+| Frontend unit (Vitest, jsdom) | 377 | `make frontend-test` |
 | Storybook (Vitest, Chromium, axe in both themes) | 98 stories | `make storybook-test` |
 | End-to-end (Playwright) | 13 UI on desktop, 2 on a phone, 12 API, 15 contract | `make e2e` |
 | Shell scripts | 174 checks | `make scripts-test` |
