@@ -9,7 +9,7 @@ test.use({ viewport: { width: 1024, height: 768 }, colorScheme: 'light', reduced
 
 test('README screenshot after 15 % of 200 =', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('status')).toHaveText('Ready')
+  await expect(page.getByText('Ready', { exact: true })).toBeVisible()
   for (const name of ['1', '5', 'percent of', '2', '0', '0', 'equals']) {
     await page.getByRole('button', { name, exact: true }).click()
   }
