@@ -225,3 +225,46 @@ func TestStaticHandlerNeedsADirectory(t *testing.T) {
 		t.Fatal("staticHandler(missing) succeeded, want an error")
 	}
 }
+
+// TestStaticCacheHeaders runs the real stack for static files: secureHeaders
+// around the handler built over an os.Root, as the server wires them.
+func TestStaticCacheHeaders(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "dist")
+	mustWrite(t, filepath.Join(dir, "index.html"), "<h1>index</h1>")
+	mustWrite(t, filepath.Join(dir, "assets", "index-3f9c2a7d.js"), "console.log(1)")
+	mustWrite(t, filepath.Join(parent, "secret.js"), "secret")
+	mustSymlink(t, filepath.Join(parent, "secret.js"), filepath.Join(dir, "assets", "index-escape.js"))
+
+	static, closeRoot := mustStaticHandler(t, dir)
+	defer closeRoot()
+	handler := secureHeaders(static)
+
+	tests := []struct {
+		name      string
+		path      string
+		wantCode  int
+		wantCache string
+	}{
+		{name: "existing hashed asset is immutable", path: "/assets/index-3f9c2a7d.js", wantCode: 200, wantCache: cacheImmutable},
+		{name: "missing asset is a 404 that is not cached", path: "/assets/index-OLDHASH.js", wantCode: 404, wantCache: cacheNone},
+		{name: "assets directory is a 404 that is not cached", path: "/assets/", wantCode: 404, wantCache: cacheNone},
+		{name: "asset through an outside symlink is refused", path: "/assets/index-escape.js", wantCode: 404, wantCache: cacheNone},
+		{name: "client route gets index without caching", path: "/some/client/route", wantCode: 200, wantCache: cacheNone},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			if rec.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.wantCode)
+			}
+			if got := rec.Header().Get("Cache-Control"); got != tt.wantCache {
+				t.Fatalf("Cache-Control = %q, want %q", got, tt.wantCache)
+			}
+			if strings.Contains(rec.Body.String(), "secret") {
+				t.Fatalf("response leaked a file outside the static directory")
+			}
+		})
+	}
+}
