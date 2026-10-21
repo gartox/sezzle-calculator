@@ -53,7 +53,8 @@ func run() error {
 		return err
 	}
 	defer limiter.Stop()
-	slog.Info("rate limit", "rps", rateCfg.RPS, "burst", rateCfg.Burst, "enabled", limiter != nil, "trust_proxy", trustProxy)
+	slog.Info("rate limit", "rps", rateCfg.RPS, "burst", rateCfg.Burst, "max_clients", rateCfg.MaxClients,
+		"enabled", limiter != nil, "trust_proxy", trustProxy)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", httpapi.NewHandler(limiter))
@@ -135,9 +136,10 @@ func newLogger(format string, w io.Writer) *slog.Logger {
 	return slog.New(slog.NewTextHandler(w, nil))
 }
 
-// rateLimitFromEnv reads RATE_LIMIT_RPS (default 10, 0 disables the limit)
-// and RATE_LIMIT_BURST (default 20). NaN and infinities parse as floats but
-// are rejected: NaN would break refills and +Inf would never throttle.
+// rateLimitFromEnv reads RATE_LIMIT_RPS (default 10, 0 disables the limit),
+// RATE_LIMIT_BURST (default 20) and RATE_LIMIT_MAX_CLIENTS (default 10,000).
+// NaN and infinities parse as floats but are rejected: NaN would break
+// refills and +Inf would never throttle.
 func rateLimitFromEnv(trustProxy bool) (httpapi.RateLimitConfig, error) {
 	cfg := httpapi.RateLimitConfig{TrustProxy: trustProxy}
 	rps, err := strconv.ParseFloat(envOr("RATE_LIMIT_RPS", "10"), 64)
@@ -148,7 +150,11 @@ func rateLimitFromEnv(trustProxy bool) (httpapi.RateLimitConfig, error) {
 	if err != nil || burst < 1 {
 		return cfg, fmt.Errorf("RATE_LIMIT_BURST must be an integer >= 1, got %q", os.Getenv("RATE_LIMIT_BURST"))
 	}
-	cfg.RPS, cfg.Burst = rps, burst
+	maxClients, err := strconv.Atoi(envOr("RATE_LIMIT_MAX_CLIENTS", strconv.Itoa(httpapi.DefaultMaxClients)))
+	if err != nil || maxClients < 1 {
+		return cfg, fmt.Errorf("RATE_LIMIT_MAX_CLIENTS must be an integer >= 1, got %q", os.Getenv("RATE_LIMIT_MAX_CLIENTS"))
+	}
+	cfg.RPS, cfg.Burst, cfg.MaxClients = rps, burst, maxClients
 	return cfg, cfg.Validate()
 }
 

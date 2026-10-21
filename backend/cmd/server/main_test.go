@@ -114,15 +114,18 @@ func TestNewLogger(t *testing.T) {
 
 func TestRateLimitFromEnv(t *testing.T) {
 	tests := []struct {
-		rps, burst string
-		wantRPS    float64
-		wantBurst  int
-		wantErr    bool
+		rps, burst, maxClients string
+		wantRPS                float64
+		wantBurst, wantMax     int
+		wantErr                bool
 	}{
-		{rps: "", burst: "", wantRPS: 10, wantBurst: 20},
-		{rps: "0", burst: "", wantRPS: 0, wantBurst: 20},
-		{rps: "1", burst: "2", wantRPS: 1, wantBurst: 2},
-		{rps: "0.5", burst: "1", wantRPS: 0.5, wantBurst: 1},
+		{wantRPS: 10, wantBurst: 20, wantMax: 10_000},
+		{rps: "0", wantRPS: 0, wantBurst: 20, wantMax: 10_000},
+		{rps: "1", burst: "2", maxClients: "50", wantRPS: 1, wantBurst: 2, wantMax: 50},
+		{rps: "0.5", burst: "1", wantRPS: 0.5, wantBurst: 1, wantMax: 10_000},
+		{maxClients: "0", wantErr: true},
+		{maxClients: "-5", wantErr: true},
+		{maxClients: "lots", wantErr: true},
 		{rps: "-1", wantErr: true},
 		{rps: "fast", wantErr: true},
 		{rps: "NaN", wantErr: true},
@@ -139,11 +142,12 @@ func TestRateLimitFromEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Setenv("RATE_LIMIT_RPS", tt.rps)
 		t.Setenv("RATE_LIMIT_BURST", tt.burst)
+		t.Setenv("RATE_LIMIT_MAX_CLIENTS", tt.maxClients)
 		cfg, err := rateLimitFromEnv(true)
 		if (err != nil) != tt.wantErr {
 			t.Fatalf("rps=%q burst=%q: err = %v, wantErr %v", tt.rps, tt.burst, err, tt.wantErr)
 		}
-		if !tt.wantErr && (cfg.RPS != tt.wantRPS || cfg.Burst != tt.wantBurst || !cfg.TrustProxy) {
+		if !tt.wantErr && (cfg.RPS != tt.wantRPS || cfg.Burst != tt.wantBurst || cfg.MaxClients != tt.wantMax || !cfg.TrustProxy) {
 			t.Fatalf("rps=%q burst=%q: got %+v", tt.rps, tt.burst, cfg)
 		}
 	}

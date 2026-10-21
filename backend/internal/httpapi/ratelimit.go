@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"container/list"
 	"fmt"
 	"math"
 	"net/http"
@@ -22,6 +23,9 @@ const (
 	idleTTL = 3 * time.Minute
 )
 
+// DefaultMaxClients bounds memory when RateLimitConfig.MaxClients is zero.
+const DefaultMaxClients = 10_000
+
 // idleAfterFor is how long a bucket must be idle before eviction is safe. A
 // dropped bucket comes back full, so it may only be dropped once it would
 // have refilled to full anyway: after burst/rps seconds, and never sooner
@@ -38,15 +42,26 @@ func idleAfterFor(rps, burst float64) time.Duration {
 // RateLimiter limits requests per client IP with a token bucket: each client
 // may send up to burst requests at once, refilled at rps tokens per second.
 // A nil *RateLimiter is valid and limits nothing.
+//
+// Memory is bounded. At most MaxClients buckets are kept, in a list ordered by
+// when each client was last seen. When the table is full, a new client evicts
+// the least recently seen one. The alternative, answering 429 to every new
+// client while full, would let anyone who fills the table with rotating
+// addresses lock out all new legitimate clients; eviction only resets the
+// oldest client to a full bucket, which a client rotating addresses gets
+// anyway. Idle buckets are swept from the old end of the list, so a sweep
+// costs only the buckets it removes.
 type RateLimiter struct {
 	rps        float64
 	burst      float64
 	trustProxy bool
 	idleAfter  time.Duration
+	maxClients int
 	now        func() time.Time
 
 	mu      sync.Mutex
-	buckets map[string]*bucket
+	clients map[string]*list.Element // each value is a *bucket
+	recency *list.List               // most recently seen at the front
 
 	stopOnce sync.Once
 	stop     chan struct{}
@@ -54,6 +69,7 @@ type RateLimiter struct {
 }
 
 type bucket struct {
+	key    string
 	tokens float64
 	last   time.Time
 }
@@ -67,6 +83,10 @@ type RateLimitConfig struct {
 	Burst int
 	// TrustProxy takes the client IP from X-Forwarded-For; see ClientIP.
 	TrustProxy bool
+	// MaxClients caps how many clients are tracked at once; zero means
+	// DefaultMaxClients. When the table is full, the least recently seen
+	// client is forgotten to admit a new one (see RateLimiter).
+	MaxClients int
 }
 
 // Validate reports a configuration that would not limit sensibly. NaN would
@@ -78,6 +98,9 @@ func (c RateLimitConfig) Validate() error {
 	}
 	if c.Burst < 1 {
 		return fmt.Errorf("rate limit: burst must be at least 1, got %d", c.Burst)
+	}
+	if c.MaxClients < 0 {
+		return fmt.Errorf("rate limit: max clients must be at least 1, got %d", c.MaxClients)
 	}
 	return nil
 }
@@ -107,13 +130,19 @@ func newRateLimiter(cfg RateLimitConfig, now func() time.Time) (*RateLimiter, er
 	if cfg.RPS == 0 {
 		return nil, nil
 	}
+	maxClients := cfg.MaxClients
+	if maxClients == 0 {
+		maxClients = DefaultMaxClients
+	}
 	return &RateLimiter{
 		rps:        cfg.RPS,
 		burst:      float64(cfg.Burst),
 		trustProxy: cfg.TrustProxy,
 		idleAfter:  idleAfterFor(cfg.RPS, float64(cfg.Burst)),
+		maxClients: maxClients,
 		now:        now,
-		buckets:    make(map[string]*bucket),
+		clients:    make(map[string]*list.Element),
+		recency:    list.New(),
 		stop:       make(chan struct{}),
 		done:       make(chan struct{}),
 	}, nil
@@ -158,22 +187,41 @@ func (l *RateLimiter) allow(key string) (bool, time.Duration) {
 	defer l.mu.Unlock()
 
 	now := l.now()
-	b, ok := l.buckets[key]
-	if !ok {
-		b = &bucket{tokens: l.burst, last: now}
-		l.buckets[key] = b
-	} else {
-		elapsed := now.Sub(b.last).Seconds()
-		b.tokens = math.Min(l.burst, b.tokens+elapsed*l.rps)
-		b.last = now
-	}
-
+	b := l.touch(key, now)
 	if b.tokens >= 1 {
 		b.tokens--
 		return true, 0
 	}
-	missing := 1 - b.tokens
-	return false, time.Duration(missing / l.rps * float64(time.Second))
+	wait := (1 - b.tokens) / l.rps * float64(time.Second)
+	if wait >= math.MaxInt64 {
+		return false, time.Duration(math.MaxInt64)
+	}
+	return false, time.Duration(wait)
+}
+
+// touch returns key's bucket refilled up to now and marks it most recently
+// seen, creating it (and evicting the least recently seen client if the
+// table is full) when key is new. The caller holds l.mu.
+func (l *RateLimiter) touch(key string, now time.Time) *bucket {
+	if e, ok := l.clients[key]; ok {
+		b := e.Value.(*bucket)
+		elapsed := max(now.Sub(b.last).Seconds(), 0)
+		b.tokens = math.Min(l.burst, b.tokens+elapsed*l.rps)
+		b.last = now
+		l.recency.MoveToFront(e)
+		return b
+	}
+	if l.recency.Len() >= l.maxClients {
+		l.remove(l.recency.Back())
+	}
+	b := &bucket{key: key, tokens: l.burst, last: now}
+	l.clients[key] = l.recency.PushFront(b)
+	return b
+}
+
+func (l *RateLimiter) remove(e *list.Element) {
+	delete(l.clients, e.Value.(*bucket).key)
+	l.recency.Remove(e)
 }
 
 // run evicts idle buckets on every tick until Stop is called.
@@ -190,15 +238,18 @@ func (l *RateLimiter) run(tick <-chan time.Time) {
 }
 
 // sweep drops buckets idle for at least idleAfter, which by then have
-// refilled to full, so dropping them changes nothing for their clients.
+// refilled to full, so dropping them changes nothing for their clients. It
+// walks from the least recently seen end and stops at the first bucket that
+// is still recent, so it never scans clients it will keep.
 func (l *RateLimiter) sweep() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
-	for key, b := range l.buckets {
-		if now.Sub(b.last) >= l.idleAfter {
-			delete(l.buckets, key)
+	for e := l.recency.Back(); e != nil; e = l.recency.Back() {
+		if now.Sub(e.Value.(*bucket).last) < l.idleAfter {
+			return
 		}
+		l.remove(e)
 	}
 }
 

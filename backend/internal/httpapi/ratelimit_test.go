@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -171,10 +172,10 @@ func TestRateLimitEvictsIdleBuckets(t *testing.T) {
 	clock.Advance(idleTTL - time.Minute + time.Second) // idle is 3m1s old, recent 1m1s
 	l.sweep()
 
-	if _, ok := l.buckets["idle"]; ok {
+	if l.tracked("idle") {
 		t.Error("bucket idle for longer than idleTTL was kept")
 	}
-	if _, ok := l.buckets["recent"]; !ok {
+	if !l.tracked("recent") {
 		t.Error("recently used bucket was evicted")
 	}
 }
@@ -191,8 +192,8 @@ func TestRateLimitSweeperRunsOnTickAndStops(t *testing.T) {
 	l.Stop()            // waits for the loop to exit, so the sweep has finished
 	l.Stop()            // a second call is safe
 
-	if len(l.buckets) != 0 {
-		t.Fatalf("sweeper did not evict on tick: %d buckets left", len(l.buckets))
+	if l.size() != 0 {
+		t.Fatalf("sweeper did not evict on tick: %d buckets left", l.size())
 	}
 }
 
@@ -240,6 +241,8 @@ func TestRateLimitConfigValidation(t *testing.T) {
 		{name: "negative rate", cfg: RateLimitConfig{RPS: -1, Burst: 20}, wantErr: true},
 		{name: "zero burst", cfg: RateLimitConfig{RPS: 1, Burst: 0}, wantErr: true},
 		{name: "zero burst even when disabled", cfg: RateLimitConfig{RPS: 0, Burst: 0}, wantErr: true},
+		{name: "explicit client cap", cfg: RateLimitConfig{RPS: 1, Burst: 1, MaxClients: 5}},
+		{name: "negative client cap", cfg: RateLimitConfig{RPS: 1, Burst: 1, MaxClients: -1}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -357,7 +360,7 @@ func TestRateLimitSlowRateIsNotResetEarly(t *testing.T) {
 
 	clock.Advance(idleTTL + time.Second) // 181 s: 1.81 tokens back, not 5
 	l.sweep()
-	if _, kept := l.buckets[ip[:len(ip)-2]]; !kept {
+	if !l.tracked(ip[:len(ip)-2]) {
 		t.Fatal("a depleted slow bucket was evicted before it refilled")
 	}
 	if rec := post(t, h, ip, ""); rec.Code != http.StatusOK {
@@ -369,7 +372,7 @@ func TestRateLimitSlowRateIsNotResetEarly(t *testing.T) {
 
 	clock.Advance(500 * time.Second) // now full: eviction is harmless
 	l.sweep()
-	if _, kept := l.buckets[ip[:len(ip)-2]]; kept {
+	if l.tracked(ip[:len(ip)-2]) {
 		t.Fatal("a bucket idle for its full refill time should be evicted")
 	}
 }
@@ -390,4 +393,106 @@ func TestIdleAfterFor(t *testing.T) {
 			t.Errorf("idleAfterFor(%v, %v) = %v, want %v", tt.rps, tt.burst, got, tt.want)
 		}
 	}
+}
+
+func TestRateLimitClientCapEvictsLeastRecentlySeen(t *testing.T) {
+	clock := newFakeClock()
+	l := mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1, MaxClients: 3}, clock.Now)
+
+	for _, key := range []string{"a", "b", "c"} {
+		l.allow(key)
+		clock.Advance(time.Millisecond)
+	}
+	l.allow("a") // "a" is now the most recent; "b" the least
+	l.allow("d") // table full: "b" is forgotten
+
+	if l.size() != 3 {
+		t.Fatalf("size = %d, want the cap of 3", l.size())
+	}
+	for key, want := range map[string]bool{"a": true, "b": false, "c": true, "d": true} {
+		if l.tracked(key) != want {
+			t.Errorf("tracked(%q) = %v, want %v", key, !want, want)
+		}
+	}
+	// "a" kept its spent bucket: eviction of others does not reset it.
+	if ok, _ := l.allow("a"); ok {
+		t.Error(`"a" should still be limited after the eviction of "b"`)
+	}
+}
+
+func TestRateLimitDefaultClientCap(t *testing.T) {
+	l := mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1}, time.Now)
+	if l.maxClients != DefaultMaxClients {
+		t.Fatalf("maxClients = %d, want %d", l.maxClients, DefaultMaxClients)
+	}
+}
+
+func TestRateLimitSaturationUnderConcurrency(t *testing.T) {
+	// Many goroutines with distinct addresses, as from a client rotating IPv6
+	// addresses: the table never exceeds its cap. Run with -race.
+	clock := newFakeClock()
+	l := mustLimiter(t, RateLimitConfig{RPS: 1, Burst: 1, MaxClients: 100}, clock.Now)
+	h := NewHandler(l)
+
+	var wg sync.WaitGroup
+	for g := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 50 {
+				post(t, h, fmt.Sprintf("[2001:db8::%x:%x]:1", g, i), "")
+			}
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range 20 {
+			l.sweep()
+		}
+	}()
+	wg.Wait()
+
+	if l.size() > 100 || l.recency.Len() != len(l.clients) {
+		t.Fatalf("size = %d (list %d, map %d), want at most 100 and both in step", l.size(), l.recency.Len(), len(l.clients))
+	}
+}
+
+func TestRateLimitSweepStopsAtFirstRecentBucket(t *testing.T) {
+	clock := newFakeClock()
+	l := mustLimiter(t, RateLimitConfig{RPS: 10, Burst: 20}, clock.Now)
+	l.allow("old-1")
+	l.allow("old-2")
+	clock.Advance(idleTTL)
+	l.allow("new-1")
+	l.allow("new-2")
+
+	l.sweep()
+
+	if l.size() != 2 || !l.tracked("new-1") || !l.tracked("new-2") {
+		t.Fatalf("after sweep: size %d, want only the two recent clients", l.size())
+	}
+}
+
+func TestRateLimitWaitDoesNotOverflow(t *testing.T) {
+	l := mustLimiter(t, RateLimitConfig{RPS: 1e-300, Burst: 1}, time.Now)
+	l.allow("slow")
+	ok, wait := l.allow("slow")
+	if ok || wait != time.Duration(math.MaxInt64) {
+		t.Fatalf("allow = %v, %v; want limited with the maximum wait", ok, wait)
+	}
+}
+
+// tracked and size let tests inspect the table without reaching into it.
+func (l *RateLimiter) tracked(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	_, ok := l.clients[key]
+	return ok
+}
+
+func (l *RateLimiter) size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.clients)
 }
