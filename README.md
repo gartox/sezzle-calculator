@@ -81,8 +81,8 @@ Open http://localhost:5173. The Vite dev server proxies every `/api` request to 
 
 CI publishes the image to GitHub Container Registry on every push to `main`, once all the other jobs have passed. It publishes the exact image it built, smoke tested and scanned, not a rebuild. Each image gets two tags:
 
-- **The commit SHA, for example `ghcr.io/gartox/sezzle-calculator:3f9c2a7…`.** It is never overwritten; if it already exists, the publish step leaves it alone.
-- **`latest`.** It moves only when the commit is still the head of `main`, and publish runs one at a time, so an older run that finishes late cannot roll it back.
+- **The commit SHA, for example `ghcr.io/gartox/sezzle-calculator:3f9c2a7…`.** It is never overwritten. `scripts/publish.sh` pushes it only after the registry positively answers that the tag does not exist. Any other lookup result, such as an auth error, a timeout or a `5xx`, fails the job without pushing, so a transient failure on a rerun cannot overwrite it.
+- **`latest`.** Promotion is a separate step that always resolves the digest the commit tag points at and moves `latest` to that digest, only while the commit is still the head of `main`. The workflow's concurrency group runs publishes on `main` one at a time, and together with that head check it keeps an older run from moving `latest` backwards. `scripts/publish_test.sh` proves the check in its "commit no longer head of main" case. If promotion fails, for example on a failed push of `latest`, a rerun finds the commit tag already published and finishes the promotion.
 
 Deployments should pin the digest, which the `publish` job prints in its summary, or the commit tag; `latest` is for trying the image out:
 
@@ -290,7 +290,7 @@ The same requests, plus the health check and a custom request ID, are in [docs/a
 
 ### Unit tests
 
-Each layer has its own suite. Both run with:
+Each layer has its own suite, and the repository's shell scripts have theirs (`make scripts-test`). All of them run with:
 
 ```bash
 make test
@@ -344,10 +344,11 @@ The workflow in `.github/workflows/ci.yml` runs on every push and pull request t
 - **`frontend`.** A matrix on Node 24 and 26: `npm ci`, a check that the generated API types match the OpenAPI document, typecheck, lint, format check, tests and build.
 - **`e2e`.** Lint, format check and Playwright on Chromium with Node 24, including the contract suite; the HTML report is uploaded on failure.
 - **`security`.** `npm audit` in `frontend/` and `e2e/`, and `govulncheck` from `tools/go.mod`.
-- **`image`.** Builds the image once, starts it and runs `scripts/smoke-test.sh`: health becomes healthy, a calculation returns `30`, and an error returns the full envelope. It then scans that same image with Trivy and hands it on as an artifact with its image ID.
-- **`publish`.** Pushes to `main` only, after the others pass. It loads that artifact, checks the image ID and pushes those exact bytes; see [Deploy](#deploy).
+- **`scripts`.** The repository's own guards. `scripts/check-supply-chain.sh` fails if an action is not pinned to a 40-character SHA, a Dockerfile `FROM` has no digest, or a tool runs at `@latest`. `make scripts-test` tests the publish script against a fake `docker` and `gh`, the pin check against fixtures with each violation, and the Makefile gofmt guard against a syntax error and an unformatted file.
+- **`image`.** Builds the image once, starts it and runs `scripts/smoke-test.sh`. That test checks the exact status and body of three responses: health `200`, a calculation `200` with `30`, and a division by zero `422` with the full envelope. The job then scans that same image with Trivy and hands it on as an artifact with its image ID.
+- **`publish`.** Runs on pushes to `main` only, after the others pass. It loads that artifact, checks the image ID and runs `scripts/publish.sh`; see [Deploy](#deploy).
 
-Every action is pinned to a full commit SHA with its version in a comment. `make smoke` and `make vulncheck` run the same checks locally.
+Every action is pinned to a full commit SHA with its version in a comment, and `make lint` runs the same pin check. `make smoke`, `make vulncheck` and `make scripts-test` run the CI checks locally; all the shell scripts are POSIX `sh` and pass shellcheck.
 
 ## Code style
 
