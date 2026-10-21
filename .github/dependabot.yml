@@ -1,5 +1,7 @@
 # Weekly dependency updates. Minor and patch bumps are grouped into one pull
-# request per ecosystem; majors still arrive on their own.
+# request per ecosystem; majors still arrive on their own. This keeps every
+# pin current: npm and Go modules, the govulncheck tool module, the Dockerfile
+# base image digests and the commit SHAs of the GitHub Actions.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -26,6 +28,16 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
 
+  # Go tools such as govulncheck, pinned in their own module.
+  - package-ecosystem: gomod
+    directory: /tools
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # Base image digests in the Dockerfile (FROM image:tag@sha256:...).
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -34,6 +46,8 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
 
+  # Actions pinned to commit SHAs; Dependabot updates the SHA and the
+  # version comment together.
   - package-ecosystem: github-actions
     directory: /
     schedule:
