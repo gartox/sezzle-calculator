@@ -56,3 +56,10 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+
+/* From 900 px the panel is always beside the calculator, so there is nothing to close. */
+@media (min-width: 900px) {
+  .close {
+    display: none;
+  }
+}
