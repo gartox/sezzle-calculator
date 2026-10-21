@@ -4,17 +4,47 @@ A full-stack calculator: a Go REST API that performs the arithmetic and a React 
 
 [![CI](https://github.com/gartox/sezzle-calculator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gartox/sezzle-calculator/actions/workflows/ci.yml)
 
+![The calculator at 1024 px after 15 % of 200 =, with the history panel beside the keypad](docs/screenshot.png)
+
 ## What it does
 
 Seven operations: add, subtract, multiply, divide, power, square root and percent, each validated on both sides and computed by the API.
 
-Stack: Go 1.26.10 standard library for the API, React 19 with TypeScript and Vite for the UI (Node 24 or newer), Playwright for end-to-end tests, Docker for packaging.
+Stack: Go 1.26.10 standard library for the API, React 19 with TypeScript and Vite for the UI (Node 24 or newer), Storybook for the component library, Playwright for end-to-end tests, Docker for packaging.
+
+## The UI
+
+A keypad calculator in the layout people already know from their phone: four columns, the operators in the accent color down the right, equals in the bottom right corner with backspace beside it. A function row above the keypad holds `√x`, `xʸ` and, on phones, the History toggle.
+
+- **Display.** The expression stays visible above the value (`15 % of 200 =`), so you can check what you typed. Values get thousands separators, a real minus sign and, when they are too long to fit, `× 10` exponents. Clicking the value copies it.
+- **Left to right.** Like a basic handheld calculator, each operator calculates what is already complete: `2 + 3 × 4 =` is `(2 + 3) × 4 = 20`, and pressing `×` already shows the intermediate `5`. Every step is one API call, so the UI never does arithmetic itself.
+- **Percent and square root.** `15 % 200 =` reads "15 % of 200" and gives `30`. `√x` works on the current value straight away; after an operator it becomes the right operand.
+- **States.** The header pill shows Ready or Offline from the health endpoint. Equals looks inactive until there is something to calculate, and shows a busy spinner only if an answer takes longer than 300 ms. An error replaces the value with the API's message and a short `Ref` (the request ID, copied in full on click); the expression stays visible and any key starts over.
+- **History.** The last ten results, kept in `sessionStorage` for the tab only (the calculator still works if storage is blocked). Choosing one puts its result back. From 900 px the panel sits beside the calculator; on phones it opens as a sheet.
+- **Accessibility.** Every key has an accessible name, the active operator is marked with `aria-pressed` and an outline, results are announced politely, both themes meet WCAG AA contrast, and motion is reduced when the system asks for it.
+
+Keyboard shortcuts, with the matching on-screen key briefly shown as pressed:
+
+| Key | Action |
+|---|---|
+| `0`–`9` | digits |
+| `.` or `,` | decimal point |
+| `+` `-` `*` (or `x`) `/` | add, subtract, multiply, divide |
+| `^` | power |
+| `%` | percent of |
+| `r` | square root |
+| `n` | toggle the sign |
+| Enter or `=` | equals |
+| Backspace | delete the last digit |
+| Escape | clear all, or close the history sheet |
+
+The reasoning behind the layout, the references it draws on and the visual identity are in [docs/design.md](docs/design.md).
 
 ## Scope
 
 The assignment asked for a calculator, unit tests with coverage, this README, the prompts used, and optionally a Dockerfile. All of that is here:
 
-- **Required.** The Go API with seven operations and edge-case handling, the React UI with validation and basic mobile support, unit tests and committed coverage reports for both layers, this README, [PROMPTS.md](PROMPTS.md), and a Dockerfile with Compose.
+- **Required.** The Go API with seven operations and edge-case handling, the React UI with input rules and basic mobile support, unit tests and committed coverage reports for both layers, this README, [PROMPTS.md](PROMPTS.md), and a Dockerfile with Compose.
 
 Beyond that, each addition answers a question a payments company asks before trusting a service:
 
@@ -24,6 +54,11 @@ Beyond that, each addition answers a question a payments company asks before tru
 - **Rate limiting.** A public endpoint without a limit is the first thing abuse finds; a per-IP token bucket is the smallest useful protection.
 - **Request IDs and an access log.** When a customer reports a failure, support needs to find that exact request; the ID in the error shown to the user makes that possible.
 - **CI and image publishing.** Every pull request runs lint, format, tests, scans and the image build, and `main` publishes the image, so what is reviewed is what ships.
+
+Two further extras are deliberate, and are about the UI rather than the service:
+
+- **A small design system.** Tokens for color, spacing, type and motion, and components built from atoms up to the page. A calculator needs only a few screens, but a consistent set of parts is what lets a UI change without breaking contrast, focus or spacing somewhere else.
+- **Storybook.** Every component and state can be reviewed in isolation, in both themes, and every story runs as a browser test with an accessibility check. It replaces screenshots in a review with something a reviewer can click.
 
 ## Quick start
 
@@ -108,11 +143,13 @@ Open http://localhost:8080. For a deployment, use `ghcr.io/gartox/sezzle-calcula
 │       └── httpapi/          JSON handler, OpenAPI document, request IDs, access log, rate limit
 ├── frontend/                 React 19 + TypeScript + Vite
 │   └── src/
-│       ├── api/client.ts     typed client for POST /api/v1/calculate
-│       ├── api/schema.d.ts   types generated from the OpenAPI document
-│       └── components/       Calculator form and input validation
+│       ├── api/              typed client, health check, types generated from the OpenAPI document
+│       ├── calculator/       keypad reducer (pure), history, the hooks that connect them to the API
+│       ├── design/           tokens and the Foundations page
+│       └── components/       atoms, molecules, organisms, template and page, each with stories
 ├── e2e/                      Playwright tests (browser and API) against the real stack
 ├── docs/api.http             ready-to-run requests for the VS Code and JetBrains HTTP clients
+├── docs/design.md            UI design rationale; docs/design/ holds the component screenshots
 ├── .github/workflows/ci.yml  lint, tests, scans, image build and publish
 ├── Dockerfile                multi-stage build, distroless runtime image
 ├── docker-compose.yml        one service with a health check
@@ -298,7 +335,15 @@ make test
 
 Backend (`make backend-test`): table-driven tests in `internal/calculator` for every operation, negative and large numbers, rounding, negative zero, underflow, division by zero, negative square roots, overflow, NaN and infinite operands; `httptest` cases in `internal/httpapi` for the happy path and every error code, including empty, oversized, wrongly typed and non-JSON bodies, repeated and wrongly cased keys, rate limiting under concurrent load, request IDs and the access log. They run with the race detector.
 
-Frontend (`make frontend-test`): Vitest with Testing Library. The API client is tested with a mocked `fetch` for the success path, each error path and the exact request it sends. The `Calculator` component is tested with the client mocked: rendering, validation, result display, the alert for every error code, the hidden `b` input for square root, the disabled button while a request is pending, and clearing of stale output. `NumberField` has its own accessibility test.
+Frontend (`make frontend-test`): Vitest with Testing Library in jsdom. The keypad rules are a pure reducer, so they are table-driven tests: digits and the fifteen-digit limit, the decimal point, sign, backspace, chaining, operator changes, square root alone and as a right operand, errors and recovery, keys ignored while a request is pending, and the keyboard mapping. The API client is tested with a mocked `fetch` for the success path, each error path and the exact request it sends; history storage is tested with storage that throws. Components are tested with fakes passed as props rather than a network mock: the page takes the API client, the health check, the storage and the clipboard as props, with the real ones as defaults. Page tests cover clicking and keyboard-only calculations, chaining with the intermediate result, the busy state at 300 ms with fake timers, errors with their Ref, a network error re-checking health, history reuse and the phone sheet. Every story also runs as a smoke test.
+
+| Layer | Tests | Command |
+|---|---|---|
+| Backend (Go, with `-race`) | 60 tests, 257 with subtests | `make backend-test` |
+| Frontend unit (Vitest, jsdom) | 282 | `make frontend-test` |
+| Storybook (Vitest, Chromium, axe in both themes) | 93 stories | `make storybook-test` |
+| End-to-end (Playwright) | 6 UI, 12 API, 15 contract | `make e2e` |
+| Shell scripts | 165 checks | `make scripts-test` |
 
 ### Coverage
 
@@ -314,11 +359,11 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 | `backend/internal/httpapi` | 100% | Includes operand range checks (`1e-999`, `1e999`), the rate limiter with a fake clock (slow-rate eviction, the client cap, concurrent saturation under `-race`), request IDs, the access log and the OpenAPI enum contract. |
 | `backend/cmd/healthcheck` | 57.1% | `check` is fully tested; `main` is not. |
 | `backend/cmd/server` | 50.5% | The security headers middleware, the static handler through `os.Root` (traversal, symlinks out of the directory, missing assets, directory requests), the logger and the environment parsing, including `NaN` and `Inf`, are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the container smoke test exercise it. |
-| `frontend/src` | 100% | Statements, branches, functions and lines. |
+| `frontend/src` | 100% | Statements, branches, functions and lines, from the jsdom suite alone; stories are excluded and add their own browser tests. |
 
 ### End-to-end
 
-Playwright drives the real stack: the Go binary serving the built frontend. Three browser tests (add, divide by zero, square root) use accessible locators only, and twelve API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the `415` for a non-JSON body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
+Playwright drives the real stack: the Go binary serving the built frontend. Six browser tests use accessible names only: 15 % of 200 by clicking, a calculation with the keyboard alone, division by zero with its message and `Ref`, left-to-right chaining with the intermediate result, the square root, and reusing a history entry. Twelve API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the `415` for a non-JSON body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
 
 A contract suite (`e2e/tests/contract.spec.ts`) checks the OpenAPI document against the running server. It loads the document the server serves and validates representative requests against `CalculateRequest`. A request the schema accepts must not come back `400`, and one it rejects must. Every response body must then match the schema documented for its status. The one rule JSON Schema cannot express, a literal too small or too large for a 64-bit float, is listed as an explicit case. This uses two small dev dependencies in the e2e package only: `ajv`, a JSON Schema 2020-12 validator matching the dialect of OpenAPI 3.1, and `yaml` to parse the document. The Go side stays on the standard library and checks the enums against the code.
 
@@ -335,6 +380,26 @@ make e2e
 ```
 
 Playwright starts the stack itself on port 8090, rebuilding the frontend bundle and the binary first so it never tests stale code. If something is already listening on 8090, for example the container started with `docker run --rm -p 8090:8080 sezzle-calculator`, the tests run against that instead. The suite is deliberately not part of `make test` so unit tests stay fast.
+
+The screenshot at the top of this README comes from the same stack, at 1024 px after `15 % 200 =`. It is opt-in so ordinary runs never rewrite a committed file:
+
+```bash
+make screenshot
+```
+
+### Storybook
+
+```bash
+make storybook
+```
+
+Opens Storybook on http://localhost:6006 with every component in both themes side by side (the toolbar switches to one), the Foundations page with live contrast ratios computed from the tokens, and interaction stories for the page: typing a calculation, chaining, division by zero and keyboard only.
+
+```bash
+make storybook-test
+```
+
+Runs every story as a test in Chromium through the Vitest addon. Stories with a play function run their interactions, and the accessibility addon fails the run on any axe violation. `make storybook-build` writes the static site to `frontend/storybook-static/`, and `make design-screenshots` rebuilds it and captures the review screenshots in [docs/design/](docs/design/).
 
 ### CI
 

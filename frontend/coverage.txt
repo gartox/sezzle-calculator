@@ -7,13 +7,14 @@ All files          |     100 |      100 |     100 |     100 |
   App.tsx          |     100 |      100 |     100 |     100 |                   
  src/api           |     100 |      100 |     100 |     100 |                   
   client.ts        |     100 |      100 |     100 |     100 |                   
+  health.ts        |     100 |      100 |     100 |     100 |                   
+ src/calculator    |     100 |      100 |     100 |     100 |                   
+  history.ts       |     100 |      100 |     100 |     100 |                   
+  keypad.ts        |     100 |      100 |     100 |     100 |                   
+  useCalculator.ts |     100 |      100 |     100 |     100 |                   
+  useHealth.ts     |     100 |      100 |     100 |     100 |                   
  src/components    |     100 |      100 |     100 |     100 |                   
-  ...ionResult.tsx |     100 |      100 |     100 |     100 |                   
-  Calculator.tsx   |     100 |      100 |     100 |     100 |                   
-  NumberField.tsx  |     100 |      100 |     100 |     100 |                   
-  ...ionSelect.tsx |     100 |      100 |     100 |     100 |                   
-  ...alculation.ts |     100 |      100 |     100 |     100 |                   
-  ...dateNumber.ts |     100 |      100 |     100 |     100 |                   
+  ...pyFeedback.ts |     100 |      100 |     100 |     100 |                   
  ...nts/atoms/Icon |     100 |      100 |     100 |     100 |                   
   Icon.tsx         |     100 |      100 |     100 |     100 |                   
  ...ents/atoms/Key |     100 |      100 |     100 |     100 |                   
@@ -35,11 +36,23 @@ All files          |     100 |      100 |     100 |     100 |
   HistoryItem.tsx  |     100 |      100 |     100 |     100 |                   
  ...les/StatusPill |     100 |      100 |     100 |     100 |                   
   StatusPill.tsx   |     100 |      100 |     100 |     100 |                   
+ ...lculatorHeader |     100 |      100 |     100 |     100 |                   
+  ...torHeader.tsx |     100 |      100 |     100 |     100 |                   
+ ...anisms/Display |     100 |      100 |     100 |     100 |                   
+  Display.tsx      |     100 |      100 |     100 |     100 |                   
+ ...s/HistoryPanel |     100 |      100 |     100 |     100 |                   
+  HistoryPanel.tsx |     100 |      100 |     100 |     100 |                   
+ ...ganisms/Keypad |     100 |      100 |     100 |     100 |                   
+  Keypad.tsx       |     100 |      100 |     100 |     100 |                   
+ ...CalculatorPage |     100 |      100 |     100 |     100 |                   
+  ...latorPage.tsx |     100 |      100 |     100 |     100 |                   
+ ...ulatorTemplate |     100 |      100 |     100 |     100 |                   
+  ...rTemplate.tsx |     100 |      100 |     100 |     100 |                   
 -------------------|---------|----------|---------|---------|-------------------
 
 =============================== Coverage summary ===============================
-Statements   : 100% ( 132/132 )
-Branches     : 100% ( 109/109 )
-Functions    : 100% ( 41/41 )
-Lines        : 100% ( 129/129 )
+Statements   : 100% ( 349/349 )
+Branches     : 100% ( 294/294 )
+Functions    : 100% ( 103/103 )
+Lines        : 100% ( 325/325 )
 ================================================================================
