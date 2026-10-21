@@ -17,13 +17,13 @@ The first version of the UI was a form: two number inputs, a select and a submit
 | Principle | How the calculator applies it |
 |---|---|
 | Recognition over recall | The expression line always shows what has been entered, with real symbols: `2 + 3 ×`, `15 % of 200`. Nobody has to remember the pending operator. |
-| Visibility of system status | A pill in the header reads Ready or Offline from `GET /api/v1/health`. While a calculation is in flight the equals key shows a busy state, but only after 300 ms, so fast answers never flicker. |
+| Visibility of system status | A pill in the header reads Ready or Offline from `GET /api/v1/health`. While a calculation is in flight the equals key shows a busy state, but only after 300 ms, so fast answers never flicker. A request is never left hanging: after 8 seconds it stops with a message. |
 | Error prevention | The keypad ignores a second decimal point and digits beyond fifteen. Equals looks inactive when there is nothing to calculate, so pressing it is not a surprise. |
-| Error recovery | An error replaces the result with a plain sentence and a small "Ref" carrying the request ID. The expression stays visible so the user sees what failed, and any key starts over. |
+| Error recovery | An error replaces the result with a plain sentence and a small "Ref" carrying the request ID. The expression stays visible so the user sees what failed. When the request failed rather than the arithmetic (network, timeout, rate limit), equals sends it again, so a blip never means retyping; any other key starts over. AC cancels a request in flight. |
 | Fitts's law | Keys are at least 56 px on phones. Equals is the most prominent target. |
 | Platform conventions | The standard layout, the operator column in the accent color, and the active operator marked with `aria-pressed` plus a visible outline, never by color alone. |
-| Accessibility | WCAG AA contrast in both themes, a visible focus ring, an accessible name on every key, results announced through `aria-live="polite"`, and animation reduced when the system asks for it. |
-| Keyboard parity | `0`–`9` and `.` enter digits; `+ - * / ^ %` choose operators; Enter or `=` calculates; Backspace deletes; Escape clears all; `r` takes the square root; `n` toggles the sign. A key typed on the keyboard briefly shows its pressed state on screen, so keyboard users get the same feedback as touch users. |
+| Accessibility | WCAG AA contrast in both themes, a visible focus ring, an accessible name on every key, results announced through `aria-live="polite"` with their expression in words ("15 percent of 200 equals 30"), even when the same result comes twice, and animation reduced when the system asks for it. The status pill announces only a change to Offline, not Ready on every load. |
+| Keyboard parity | `0`–`9` and `.` enter digits; `+ - * / ^ %` choose operators (`-` right after `×`, `÷`, `^` or `%` starts a negative number); Enter or `=` calculates; Backspace deletes; Escape clears all; `r` takes the square root; `n` toggles the sign. The keyboard works from the moment the page loads. Enter calculates even when a key still has focus from a mouse click; only a key reached with Tab takes Enter itself. Keys typed while an answer is on its way are kept and applied in order, as on a hardware calculator. A key typed on the keyboard briefly shows its pressed state on screen, so keyboard users get the same feedback as touch users. |
 
 ## Layout
 
@@ -47,9 +47,11 @@ AC   ±   %   ÷
 
 The brief offered two bottom rows: a double-width zero, or `0 . ⌫ =` with zero at single width. We chose the second. It is the only one that keeps four equal columns while putting equals in the bottom right corner and backspace right next to it, which are the two positions the references agree on. The cost is a smaller zero key. On a phone it is still at least 56 px, so it remains an easy target, and backspace gets the slot that a wide zero would have taken.
 
-**History.** The last ten results, kept on the client only, in `sessionStorage` wrapped in `try`/`catch` so the calculator still works when storage is blocked. Each entry shows its expression and result; choosing one puts its result back as the current value. On screens 900 px and wider the panel sits beside the calculator. On phones it opens as a sheet from the History toggle.
+**History.** The last ten results, kept on the client only, in `sessionStorage` wrapped in `try`/`catch` so the calculator still works when storage is blocked. Each entry shows the whole chain and its result (`2 + 3 × 4 = 20`, `200 + 10 % = 220`), so it reads as a record; choosing one puts its result back as the current value. On screens 900 px and wider the panel sits beside the calculator. On phones it opens from the History toggle as a modal sheet: a dialog that takes focus and keeps Tab inside, over a calculator that is inert and ignores the keyboard until the sheet closes, and every way of closing it returns focus to the toggle.
 
 **Evaluation order.** Left to right, like a basic handheld calculator: `2 + 3 × 4 =` gives `20`, and pressing `×` already shows the intermediate `5`. Each step is its own API call, so chaining is several requests in order.
+
+**Percent.** Two readings, both the common calculator convention. On its own, `15 % 200 =` is "15 % of 200", which is the API's `percent(a, b)`, and gives `30`. Inside a chain, `%` changes the number just typed: after `+` or `−` it becomes that percent of the running total, so `200 + 10 %` shows `200 + 20` and `=` gives `220` (a tip or a discount); after `×`, `÷` or `^` it becomes a hundredth, so `200 × 10 % =` gives `20`. Both go through the API's `percent` operation, so the UI still does no arithmetic.
 
 ## Visual identity
 

@@ -16,27 +16,31 @@ Stack: Go 1.26.10 standard library for the API, React 19 with TypeScript and Vit
 
 A keypad calculator in the layout people already know from their phone: four columns, the operators in the accent color down the right, equals in the bottom right corner with backspace beside it. A function row above the keypad holds `√x`, `xʸ` and, on phones, the History toggle.
 
-- **Display.** The expression stays visible above the value (`15 % of 200 =`), so you can check what you typed. Values get thousands separators, a real minus sign and, when they are too long to fit, `× 10` exponents. Clicking the value copies it.
-- **Left to right.** Like a basic handheld calculator, each operator calculates what is already complete: `2 + 3 × 4 =` is `(2 + 3) × 4 = 20`, and pressing `×` already shows the intermediate `5`. Every step is one API call, so the UI never does arithmetic itself.
-- **Percent and square root.** `15 % 200 =` reads "15 % of 200" and gives `30`. `√x` works on the current value straight away; after an operator it becomes the right operand.
-- **States.** The header pill shows Ready or Offline from the health endpoint. Equals looks inactive until there is something to calculate, and shows a busy spinner only if an answer takes longer than 300 ms. An error replaces the value with the API's message and a short `Ref` (the request ID, copied in full on click); the expression stays visible and any key starts over.
-- **History.** The last ten results, kept in `sessionStorage` for the tab only (the calculator still works if storage is blocked). Choosing one puts its result back. From 900 px the panel sits beside the calculator; on phones it opens as a sheet.
-- **Accessibility.** Every key has an accessible name, the active operator is marked with `aria-pressed` and an outline, results are announced politely, both themes meet WCAG AA contrast, and motion is reduced when the system asks for it.
+- **Display.** The expression stays visible above the value (`15 % of 200 =`), so you can check what you typed; a line too long to fit is cut at its start, so the part just typed stays visible. Values get thousands separators, a real minus sign and, when they are too long to fit, `× 10` exponents. Clicking the value copies it; a small copy icon under it says so.
+- **Left to right.** Like a basic handheld calculator, each operator calculates what is already complete: `2 + 3 × 4 =` is `(2 + 3) × 4 = 20`, and pressing `×` already shows the intermediate `5`. Every step is one API call, so the UI never does arithmetic itself. Keys pressed while an answer is on its way are kept and applied in order when it arrives, so typing fast on a slow network loses nothing.
+- **Percent.** On its own, `15 % 200 =` reads "15 % of 200" and gives `30`, the API's meaning. Inside a chain it follows the handheld convention: after `+` or `−`, `%` turns the number into that percent of the running total, so `200 + 10 %` shows `200 + 20` and `=` gives `220`; after `×`, `÷` or `^` it makes the number a hundredth, so `200 × 10 % =` gives `20`. Either way the API does the arithmetic with its `percent` operation.
+- **Square root.** `√x` works on the current value straight away; after an operator it becomes the right operand (`9 + √16 =` is `13`).
+- **States.** The header pill shows Ready or Offline from the health endpoint and is re-checked after a network error and after the next successful calculation. Equals looks inactive until there is something to calculate, and shows a busy spinner only if an answer takes longer than 300 ms. A request not answered within 8 seconds stops with "The calculator did not answer.", and AC cancels a request in flight. An error replaces the value with a plain message and, when the API answered, a short `Ref` (the request ID, copied in full on click); the expression stays visible. When the request failed rather than the arithmetic (network, timeout, rate limit), the message says "Press = to try again" and equals sends it again; any other key starts over.
+- **History.** The last ten results, kept in `sessionStorage` for the tab only (the calculator still works if storage is blocked). Each entry records the whole chain, `2 + 3 × 4 = 20`, and choosing one puts its result back. From 900 px the panel sits beside the calculator. On phones it opens as a modal sheet: focus moves into it and stays there, the calculator behind it is inert and ignores the keyboard, and closing it (Close, Escape, the backdrop or choosing an entry) returns focus to the History toggle.
+- **Accessibility.** Every key has an accessible name, the active operator is marked with `aria-pressed` and an outline, results are announced politely with their expression in words ("2 plus 3 equals 5", "minus 30"), both themes meet WCAG AA contrast, and motion is reduced when the system asks for it.
 
-Keyboard shortcuts, with the matching on-screen key briefly shown as pressed:
+The keyboard works as soon as the page loads, without clicking first, and the matching on-screen key briefly shows as pressed. Shortcuts with Ctrl, Cmd or Alt are left to the browser, and nothing is captured while typing in a text field.
 
 | Key | Action |
 |---|---|
 | `0`–`9` | digits |
 | `.` or `,` | decimal point |
-| `+` `-` `*` (or `x`) `/` | add, subtract, multiply, divide |
+| `+` `*` (or `x`) `/` | add, multiply, divide |
+| `-` | subtract; right after `×`, `÷`, `^` or `%` it starts a negative number instead (`5 * - 3` is `5 × −3`) |
 | `^` | power |
-| `%` | percent of |
+| `%` | percent of, or percent in a chain (see above) |
 | `r` | square root |
 | `n` | toggle the sign |
-| Enter or `=` | equals |
+| Enter or `=` | equals, also after clicking a key with the mouse; only a key reached with Tab takes Enter itself, as any button does |
 | Backspace | delete the last digit |
-| Escape | clear all, or close the history sheet |
+| Escape | clear all (there is no undo), or close the history sheet |
+
+Two trade-offs of a keyboard-first calculator: Escape clears without an undo, and `/` is taken for divide, so Firefox's quick find shortcut does not open on this page.
 
 The reasoning behind the layout, the references it draws on and the visual identity are in [docs/design.md](docs/design.md).
 
@@ -335,15 +339,15 @@ make test
 
 Backend (`make backend-test`): table-driven tests in `internal/calculator` for every operation, negative and large numbers, rounding, negative zero, underflow, division by zero, negative square roots, overflow, NaN and infinite operands; `httptest` cases in `internal/httpapi` for the happy path and every error code, including empty, oversized, wrongly typed and non-JSON bodies, repeated and wrongly cased keys, rate limiting under concurrent load, request IDs and the access log. They run with the race detector.
 
-Frontend (`make frontend-test`): Vitest with Testing Library in jsdom. The keypad rules are a pure reducer, so they are table-driven tests: digits and the fifteen-digit limit, the decimal point, sign, backspace, chaining, operator changes, square root alone and as a right operand, errors and recovery, keys ignored while a request is pending, and the keyboard mapping. The API client is tested with a mocked `fetch` for the success path, each error path and the exact request it sends; history storage is tested with storage that throws. Components are tested with fakes passed as props rather than a network mock: the page takes the API client, the health check, the storage and the clipboard as props, with the real ones as defaults. Page tests cover clicking and keyboard-only calculations, chaining with the intermediate result, the busy state at 300 ms with fake timers, errors with their Ref, a network error re-checking health, history reuse and the phone sheet. Every story also runs as a smoke test.
+Frontend (`make frontend-test`): Vitest with Testing Library in jsdom. The keypad rules are a pure reducer, so they are table-driven tests: digits and the fifteen-digit limit, the decimal point, sign, backspace, chaining, operator changes, percent and square root in a chain, the keyboard minus, keys queued while a request is pending and applied after it, AC cancelling, errors with and without a retry, the history record of a whole chain, announcements, and the keyboard mapping. The keyboard hook has its own tests (modifiers, text fields, Enter after a click versus after Tab, the paused state behind the sheet), and a token test checks that the two dark palettes in `tokens.css` declare the same values. The API client is tested with a mocked `fetch` for the success path, each error path and the exact request it sends; history storage is tested with storage that throws. Components are tested with fakes passed as props rather than a network mock: the page takes the API client, the health check, the storage and the clipboard as props, with the real ones as defaults. Page tests cover clicking and keyboard-only calculations, keys sent to the document right after load, Enter after mouse clicks, chaining with the intermediate result, percent in a chain, keys pressed during a slow answer, the busy state at 300 ms and the 8 s timeout with fake timers, AC cancelling a hung request, errors with their Ref, retries, a network error re-checking health, history reuse, and the phone sheet's focus handling. Every story also runs as a smoke test.
 
 | Layer | Tests | Command |
 |---|---|---|
 | Backend (Go, with `-race`) | 60 tests, 257 with subtests | `make backend-test` |
-| Frontend unit (Vitest, jsdom) | 282 | `make frontend-test` |
-| Storybook (Vitest, Chromium, axe in both themes) | 93 stories | `make storybook-test` |
-| End-to-end (Playwright) | 6 UI, 12 API, 15 contract | `make e2e` |
-| Shell scripts | 165 checks | `make scripts-test` |
+| Frontend unit (Vitest, jsdom) | 370 | `make frontend-test` |
+| Storybook (Vitest, Chromium, axe in both themes) | 98 stories | `make storybook-test` |
+| End-to-end (Playwright) | 13 UI on desktop, 2 on a phone, 12 API, 15 contract | `make e2e` |
+| Shell scripts | 174 checks | `make scripts-test` |
 
 ### Coverage
 
@@ -363,7 +367,7 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 
 ### End-to-end
 
-Playwright drives the real stack: the Go binary serving the built frontend. Six browser tests use accessible names only: 15 % of 200 by clicking, a calculation with the keyboard alone, division by zero with its message and `Ref`, left-to-right chaining with the intermediate result, the square root, and reusing a history entry. Twelve API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the `415` for a non-JSON body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
+Playwright drives the real stack: the Go binary serving the built frontend. Browser tests use accessible names only. On a desktop viewport: 15 % of 200 by clicking, a calculation with the keyboard alone, division by zero with its message and `Ref`, left-to-right chaining with the intermediate result, percent in a chain, the square root, and reusing a history entry that records the whole chain; then the input cases, each of which failed before it was fixed: typing right after the page loads, Enter after clicking keys (twice), keys pressed while `page.route` delays each answer by 300 ms, AC on a request that never answers, and the 8 s timeout followed by a retry. A `mobile` project (a Pixel 7 at 375 px) checks that the history sheet takes focus, keeps Tab inside, ignores the keypad keys and returns focus to the toggle on every way of closing, and that the page does not scroll. Twelve API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the `415` for a non-JSON body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
 
 A contract suite (`e2e/tests/contract.spec.ts`) checks the OpenAPI document against the running server. It loads the document the server serves and validates representative requests against `CalculateRequest`. A request the schema accepts must not come back `400`, and one it rejects must. Every response body must then match the schema documented for its status. The one rule JSON Schema cannot express, a literal too small or too large for a 64-bit float, is listed as an explicit case. This uses two small dev dependencies in the e2e package only: `ajv`, a JSON Schema 2020-12 validator matching the dialect of OpenAPI 3.1, and `yaml` to parse the document. The Go side stays on the standard library and checks the enums against the code.
 
@@ -393,7 +397,7 @@ make screenshot
 make storybook
 ```
 
-Opens Storybook on http://localhost:6006 with every component in both themes side by side (the toolbar switches to one), the Foundations page with live contrast ratios computed from the tokens, and interaction stories for the page: typing a calculation, chaining, division by zero and keyboard only.
+Opens Storybook on http://localhost:6006 with every component in both themes side by side (the toolbar switches to one), the Foundations page with live contrast ratios computed from the tokens, and interaction stories for the page: typing a calculation, chaining, percent in a chain, a slow network, division by zero, keyboard only, and mouse then Enter.
 
 ```bash
 make storybook-test
@@ -406,7 +410,7 @@ Runs every story as a test in Chromium through the Vitest addon. Stories with a 
 The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with six jobs:
 
 - **`backend`.** gofmt check, `go vet`, and tests with the race detector.
-- **`frontend`.** A matrix on Node 24 and 26: `npm ci`, a check that the generated API types match the OpenAPI document, typecheck, lint, format check, tests and build.
+- **`frontend`.** A matrix on Node 24 and 26: `npm ci`, a check that the generated API types match the OpenAPI document, typecheck, lint, format check, unit tests, the Storybook tests in Chromium (every play function and an axe check in both themes) and build.
 - **`e2e`.** Lint, format check and Playwright on Chromium with Node 24, including the contract suite; the HTML report is uploaded on failure.
 - **`security`.** `npm audit` in `frontend/` and `e2e/`, and `govulncheck` from `tools/go.mod`.
 - **`scripts`.** The repository's own guards. `scripts/check-supply-chain.sh` fails if an action is not pinned to a 40-character SHA, a Dockerfile `FROM` has no digest, or a tool runs at `@latest`. `scripts/check-workflow.sh` fails if the `publish` job runs on anything but a push to `main`, loses its literal concurrency group or `cancel-in-progress: false`, stops needing every other job, builds an image instead of loading the tested artifact, stops reading the loaded image ID with `docker image inspect` and exiting when it differs, or stops passing the verified ID to `scripts/publish.sh`. It strips comments before checking, so a commented-out line cannot satisfy it. `make scripts-test` tests the publish script against fake `curl`, `docker` and `gh`, both checks against fixtures with each violation, and the Makefile gofmt guard.
