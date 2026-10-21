@@ -1,0 +1,152 @@
+/*
+ * Design tokens. Every color, size and duration the UI uses comes from here.
+ * The light theme is the default; dark applies when the system prefers it or
+ * when an element sets data-theme="dark". data-theme="light" forces light.
+ * Contrast for every text pair is shown live on the Foundations page.
+ */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces: ivory */
+  --color-surface-page: #f6f4ee;
+  --color-surface-card: #fffdf8;
+  --color-surface-display: #efece4;
+  --color-border: #cfc9bc;
+
+  /* Text: graphite */
+  --color-text: #1d1f24;
+  --color-text-muted: #585b63;
+
+  /* Keys */
+  --color-key-digit: #ebe7de;
+  --color-key-function: #e1ddd2;
+  --color-key-utility: #d6d1c5;
+  --color-key-text: var(--color-text);
+
+  /* The one accent: operators and equals */
+  --color-accent: #0e6b5f;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #d3ebe6;
+  --color-on-accent-soft: #0b4d44;
+
+  /* Status */
+  --color-success: #17663a;
+  --color-danger: #a3161a;
+  --color-neutral: #585b63;
+  --color-focus: #0e6b5f;
+
+  --shadow-card: 0 1px 2px rgb(29 31 36 / 6%), 0 8px 24px rgb(29 31 36 / 8%);
+  --shadow-key: 0 1px 0 rgb(29 31 36 / 10%);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces: graphite */
+  --color-surface-page: #111317;
+  --color-surface-card: #1a1c21;
+  --color-surface-display: #141619;
+  --color-border: #3a3d45;
+
+  /* Text: ivory */
+  --color-text: #f1eee6;
+  --color-text-muted: #a6a8b0;
+
+  --color-key-digit: #2a2d33;
+  --color-key-function: #33363d;
+  --color-key-utility: #3d4048;
+  --color-key-text: var(--color-text);
+
+  --color-accent: #4fc2b0;
+  --color-on-accent: #0a1f1b;
+  --color-accent-soft: #1d3a35;
+  --color-on-accent-soft: #a9e5da;
+
+  --color-success: #6fd99a;
+  --color-danger: #ff9a94;
+  --color-neutral: #a6a8b0;
+  --color-focus: #7fd8c9;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 35%);
+  --shadow-key: 0 1px 0 rgb(0 0 0 / 35%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-surface-page: #111317;
+    --color-surface-card: #1a1c21;
+    --color-surface-display: #141619;
+    --color-border: #3a3d45;
+    --color-text: #f1eee6;
+    --color-text-muted: #a6a8b0;
+    --color-key-digit: #2a2d33;
+    --color-key-function: #33363d;
+    --color-key-utility: #3d4048;
+    --color-accent: #4fc2b0;
+    --color-on-accent: #0a1f1b;
+    --color-accent-soft: #1d3a35;
+    --color-on-accent-soft: #a9e5da;
+    --color-success: #6fd99a;
+    --color-danger: #ff9a94;
+    --color-neutral: #a6a8b0;
+    --color-focus: #7fd8c9;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 35%);
+    --shadow-key: 0 1px 0 rgb(0 0 0 / 35%);
+  }
+}
+
+:root {
+  /* Spacing: a 4 px scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Typography: the system stack, tabular figures for numbers */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-numeric-variant: tabular-nums;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.75rem;
+  --font-size-display-sm: 1.75rem;
+  --font-size-display-md: 2.25rem;
+  --font-size-display-lg: 2.75rem;
+  --font-size-display-xl: 3.25rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --line-height-tight: 1.15;
+  --line-height-normal: 1.5;
+
+  /* Sizes */
+  --size-key-min: 56px;
+  --size-focus-ring: 3px;
+
+  /* Motion */
+  --motion-duration-fast: 80ms;
+  --motion-duration-normal: 160ms;
+  --motion-easing: cubic-bezier(0.2, 0, 0, 1);
+  --motion-press-scale: 0.96;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0ms;
+    --motion-duration-normal: 0ms;
+    --motion-press-scale: 1;
+  }
+}

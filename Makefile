@@ -13,7 +13,8 @@ IMAGE := sezzle-calculator
 .PHONY: help test coverage build run clean lint format format-check \
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
-        e2e-install e2e docker-build docker-run
+        e2e-install e2e docker-build docker-run \
+        storybook storybook-build storybook-test
 
 ## help: list the available targets (default)
 help:
@@ -101,6 +102,21 @@ frontend-coverage: $(FRONTEND)/node_modules
 ## frontend-build: build the production bundle into frontend/dist
 frontend-build: $(FRONTEND)/node_modules
 	cd $(FRONTEND) && npm run build
+
+# Storybook (component workshop). Story tests render every story in a real
+# Chromium and fail on any axe violation, in light and dark.
+
+## storybook: run Storybook on http://localhost:6006
+storybook: $(FRONTEND)/node_modules
+	cd $(FRONTEND) && npm run storybook
+
+## storybook-build: build the static Storybook into frontend/storybook-static
+storybook-build: $(FRONTEND)/node_modules
+	cd $(FRONTEND) && npm run build-storybook
+
+## storybook-test: run every story as a browser test with accessibility checks
+storybook-test: $(FRONTEND)/node_modules
+	cd $(FRONTEND) && npx playwright install chromium && npm run test-storybook
 
 # End-to-end (Playwright). Not part of `make test`: it builds the whole stack
 # and drives a real browser, so it is slower and needs Chromium installed.

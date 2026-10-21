@@ -7,3 +7,4 @@ package-lock.json
 
 # Generated from the OpenAPI document; formatting it would break the drift check
 frontend/src/api/schema.d.ts
+storybook-static

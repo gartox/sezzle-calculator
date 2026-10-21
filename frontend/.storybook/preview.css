@@ -1,0 +1,21 @@
+/* Storybook canvas only: one panel per theme, painted with the page surface. */
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+}
+
+.sb-themes {
+  display: grid;
+  min-height: 100vh;
+}
+
+.sb-themes[data-count='2'] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+
+.sb-theme {
+  box-sizing: border-box;
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-surface-page);
+  color: var(--color-text);
+}
