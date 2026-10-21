@@ -21,7 +21,6 @@ const GALLERY: Array<KeyProps & { caption: string }> = [
   { caption: 'Icon', label: <Icon name="backspace" />, name: 'backspace', variant: 'utility' },
   { caption: 'Disabled', label: '9', name: '9', disabled: true },
   { caption: 'Active operator', label: '÷', name: 'divide', variant: 'operator', active: true },
-  { caption: 'Wide', label: '0', name: '0', wide: true },
   { caption: 'Equals, inactive', label: '=', name: 'equals', variant: 'equals', inactive: true },
   { caption: 'Equals', label: '=', name: 'equals', variant: 'equals' },
   { caption: 'Equals, busy', label: '=', name: 'equals', variant: 'equals', busy: true },
@@ -63,15 +62,6 @@ export const Disabled: Story = { args: { label: '9', name: '9', disabled: true }
 /** A result is on its way: spinner, aria-busy, presses ignored. */
 export const Busy: Story = { args: { label: '=', name: 'equals', variant: 'equals', busy: true } }
 
-export const Wide: Story = {
-  args: { label: '0', name: '0', wide: true },
-  render: (args) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 64px)', gap: 8 }}>
-      <Key {...args} />
-    </div>
-  ),
-}
-
 /** Every variant and state side by side, each with a caption. */
 export const AllVariants: Story = {
   args: { label: '7', name: '7' },
@@ -91,10 +81,9 @@ export const AllVariants: Story = {
             display: 'grid',
             gap: 6,
             margin: 0,
-            gridColumn: props.wide ? 'span 2' : undefined,
           }}
         >
-          <Key {...props} wide={false} style={{ width: '100%' }} />
+          <Key {...props} style={{ width: '100%' }} />
           <figcaption
             style={{
               color: 'var(--color-text-muted)',

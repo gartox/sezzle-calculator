@@ -28,8 +28,6 @@ export interface KeyProps extends Omit<
   busy?: boolean
   /** Looks quieter and ignores presses, for example equals with nothing to calculate. */
   inactive?: boolean
-  /** Spans two columns of the keypad grid. */
-  wide?: boolean
   onPress?: () => void
 }
 
@@ -42,14 +40,11 @@ function Key({
   pressed = false,
   busy = false,
   inactive = false,
-  wide = false,
   onPress,
   className,
   ...buttonProps
 }: KeyProps) {
-  const classes = [styles.key, styles[variant], wide && styles.wide, className]
-    .filter(Boolean)
-    .join(' ')
+  const classes = [styles.key, styles[variant], className].filter(Boolean).join(' ')
 
   function handleClick() {
     if (busy || inactive) {

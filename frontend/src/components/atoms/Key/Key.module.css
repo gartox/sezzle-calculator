@@ -55,10 +55,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.wide {
-  grid-column: span 2;
-}
-
 /* Hover: a slight shade toward the text color, in both themes. */
 .key:hover:not(:disabled, [aria-disabled='true'], [aria-busy='true']) {
   background: color-mix(in srgb, var(--key-bg) 88%, var(--key-fg));

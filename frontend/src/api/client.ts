@@ -15,28 +15,6 @@ export type ClientErrorCode = 'NETWORK_ERROR' | 'UNEXPECTED_RESPONSE'
 /** Every code an {@link ApiError} can carry: the API's codes plus the client's. */
 export type ErrorCode = Schemas['ErrorCode'] | ClientErrorCode
 
-export interface OperationOption {
-  value: Operation
-  label: string
-}
-
-// A Record keyed by Operation fails to compile if the contract gains an
-// operation without a label here. Key order is the display order.
-const OPERATION_LABELS: Record<Operation, string> = {
-  add: 'Add (a + b)',
-  subtract: 'Subtract (a − b)',
-  multiply: 'Multiply (a × b)',
-  divide: 'Divide (a ÷ b)',
-  power: 'Power (a ^ b)',
-  sqrt: 'Square root (√a)',
-  percent: 'Percent (a % of b)',
-}
-
-/** Every supported operation with a label for the UI, in display order. */
-export const OPERATIONS: readonly OperationOption[] = (
-  Object.keys(OPERATION_LABELS) as Operation[]
-).map((value) => ({ value, label: OPERATION_LABELS[value] }))
-
 type UnaryOperation = Schemas['UnaryOperation']
 
 /** Operations that take a single operand. */

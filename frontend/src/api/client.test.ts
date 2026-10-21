@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, CALCULATE_PATH, OPERATIONS, calculate, requestBody } from './client'
+import { ApiError, CALCULATE_PATH, calculate, requestBody } from './client'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -27,23 +27,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   fetchMock.mockReset()
-})
-
-describe('OPERATIONS', () => {
-  it('lists the seven backend operations in order with labels', () => {
-    expect(OPERATIONS.map((o) => o.value)).toEqual([
-      'add',
-      'subtract',
-      'multiply',
-      'divide',
-      'power',
-      'sqrt',
-      'percent',
-    ])
-    for (const option of OPERATIONS) {
-      expect(option.label).not.toBe('')
-    }
-  })
 })
 
 describe('calculate', () => {
