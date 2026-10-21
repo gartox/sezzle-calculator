@@ -19,7 +19,7 @@ GOFMT_CHECK = unformatted="$$(gofmt -l .)" || { echo "gofmt failed"; exit 1; }; 
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
         e2e-install e2e docker-build docker-run \
-        storybook storybook-build storybook-test design-screenshots smoke vulncheck
+        storybook storybook-build storybook-test design-screenshots smoke vulncheck screenshot
 
 ## help: list the available targets (default)
 help:
@@ -148,6 +148,10 @@ $(E2E)/node_modules: $(E2E)/package-lock.json
 ## e2e-install: install the end-to-end dependencies and Chromium (run once)
 e2e-install:
 	cd $(E2E) && npm ci && npx playwright install chromium
+
+## screenshot: capture docs/screenshot.png for the README at 1024 px after 15 % of 200 =
+screenshot: $(E2E)/node_modules
+	cd $(E2E) && npm run screenshot
 
 ## e2e: run the browser and API tests; starts the stack on port 8090 or reuses a server there
 e2e: $(E2E)/node_modules
