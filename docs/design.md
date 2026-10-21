@@ -56,7 +56,7 @@ The brief offered two bottom rows: a double-width zero, or `0 . ⌫ =` with zero
 Our own, calm and suited to finance. It does not borrow Sezzle's brand or any other product's colors or wording.
 
 - **Surfaces.** Ivory in the light theme and graphite in the dark theme, with a slightly deeper tone for the display.
-- **Accent.** One deep jade for operators and equals, and nowhere else, so the eye goes straight to the actions.
+- **Accent.** One calm indigo for operators and equals, and nowhere else, so the eye goes straight to the actions: `#4338CA` on ivory, a lighter `#8B93FF` on graphite. An equals key with nothing to calculate drops the accent entirely and shows a muted glyph on a quiet surface, so it reads as unavailable in both themes.
 - **Type.** The system font stack, with tabular numbers for the display and the history.
 - **Shape and motion.** A soft radius, subtle press feedback (a small scale and shade change), and no motion at all when `prefers-reduced-motion` is set.
 - **Themes.** Light and dark follow `prefers-color-scheme`. The Foundations page in Storybook computes the contrast ratio of every text and background pair live, from the tokens themselves, so a token change that breaks AA is visible immediately.

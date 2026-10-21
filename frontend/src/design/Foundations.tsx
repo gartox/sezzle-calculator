@@ -28,6 +28,7 @@ const COLOR_TOKENS = [
   ['--color-key-utility', 'Utility key'],
   ['--color-accent', 'Accent: operators and equals'],
   ['--color-accent-soft', 'Active operator'],
+  ['--color-key-inactive', 'Inactive key'],
   ['--color-success', 'Ready'],
   ['--color-danger', 'Error and offline'],
   ['--color-focus', 'Focus ring'],
@@ -44,6 +45,7 @@ const CONTRAST_PAIRS = [
   ['--color-key-text', '--color-key-utility', 'Utility key label'],
   ['--color-on-accent', '--color-accent', 'Operator and equals label'],
   ['--color-on-accent-soft', '--color-accent-soft', 'Active operator label'],
+  ['--color-on-key-inactive', '--color-key-inactive', 'Inactive equals label'],
   ['--color-danger', '--color-surface-display', 'Error message'],
   ['--color-success', '--color-surface-card', 'Ready label'],
 ] as const

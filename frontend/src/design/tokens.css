@@ -24,18 +24,20 @@
   --color-key-function: #e1ddd2;
   --color-key-utility: #d6d1c5;
   --color-key-text: var(--color-text);
+  --color-key-inactive: #e4e0d6;
+  --color-on-key-inactive: #585b63;
 
-  /* The one accent: operators and equals */
-  --color-accent: #0e6b5f;
+  /* The one accent, a calm indigo: operators and equals */
+  --color-accent: #4338ca;
   --color-on-accent: #ffffff;
-  --color-accent-soft: #d3ebe6;
-  --color-on-accent-soft: #0b4d44;
+  --color-accent-soft: #e3e5fb;
+  --color-on-accent-soft: #312a8f;
 
   /* Status */
   --color-success: #17663a;
   --color-danger: #a3161a;
   --color-neutral: #585b63;
-  --color-focus: #0e6b5f;
+  --color-focus: #4338ca;
 
   --shadow-card: 0 1px 2px rgb(29 31 36 / 6%), 0 8px 24px rgb(29 31 36 / 8%);
   --shadow-key: 0 1px 0 rgb(29 31 36 / 10%);
@@ -58,16 +60,18 @@
   --color-key-function: #33363d;
   --color-key-utility: #3d4048;
   --color-key-text: var(--color-text);
+  --color-key-inactive: #222429;
+  --color-on-key-inactive: #8a8d96;
 
-  --color-accent: #4fc2b0;
-  --color-on-accent: #0a1f1b;
-  --color-accent-soft: #1d3a35;
-  --color-on-accent-soft: #a9e5da;
+  --color-accent: #8b93ff;
+  --color-on-accent: #11132e;
+  --color-accent-soft: #262a55;
+  --color-on-accent-soft: #c9cdff;
 
   --color-success: #6fd99a;
   --color-danger: #ff9a94;
   --color-neutral: #a6a8b0;
-  --color-focus: #7fd8c9;
+  --color-focus: #a5abff;
 
   --shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 35%);
   --shadow-key: 0 1px 0 rgb(0 0 0 / 35%);
@@ -85,14 +89,16 @@
     --color-key-digit: #2a2d33;
     --color-key-function: #33363d;
     --color-key-utility: #3d4048;
-    --color-accent: #4fc2b0;
-    --color-on-accent: #0a1f1b;
-    --color-accent-soft: #1d3a35;
-    --color-on-accent-soft: #a9e5da;
+    --color-key-inactive: #222429;
+    --color-on-key-inactive: #8a8d96;
+    --color-accent: #8b93ff;
+    --color-on-accent: #11132e;
+    --color-accent-soft: #262a55;
+    --color-on-accent-soft: #c9cdff;
     --color-success: #6fd99a;
     --color-danger: #ff9a94;
     --color-neutral: #a6a8b0;
-    --color-focus: #7fd8c9;
+    --color-focus: #a5abff;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 35%);
     --shadow-key: 0 1px 0 rgb(0 0 0 / 35%);
   }
