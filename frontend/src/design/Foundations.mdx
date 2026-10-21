@@ -1,0 +1,34 @@
+import { Canvas, Meta } from '@storybook/addon-docs/blocks'
+import * as FoundationsStories from './Foundations.stories'
+
+<Meta of={FoundationsStories} />
+
+# Foundations
+
+Every color, size and duration in the calculator comes from `src/design/tokens.css`. The light theme is the default and the dark theme follows `prefers-color-scheme`; both are shown side by side below. Contrast ratios are computed live from the resolved tokens, so a change that drops a pair below WCAG AA shows up here immediately and fails the accessibility test of these stories.
+
+## Color
+
+<Canvas of={FoundationsStories.Colors} />
+
+## Contrast
+
+<Canvas of={FoundationsStories.Contrast} />
+
+## Spacing
+
+A 4 px scale. Keys are at least 56 px so they stay easy targets on a phone.
+
+<Canvas of={FoundationsStories.Spacing} />
+
+## Typography
+
+<Canvas of={FoundationsStories.Typography} />
+
+## Radius
+
+<Canvas of={FoundationsStories.Radius} />
+
+## Motion
+
+<Canvas of={FoundationsStories.Motion} />
