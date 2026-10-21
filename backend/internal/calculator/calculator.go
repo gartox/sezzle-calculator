@@ -88,13 +88,32 @@ func Calculate(op Operation, a, b float64) (float64, error) {
 		}
 		result = math.Sqrt(a)
 	case Percent:
-		result = a * b / 100
+		result = percentOf(a, b)
 	}
 
 	if !isFinite(result) {
 		return 0, ErrOverflow
 	}
 	return Round(result), nil
+}
+
+// percentOf returns a percent of b without overflowing in between when the
+// result itself is representable. a*b/100 is tried first because it is the
+// most precise and keeps subnormal operands; it overflows when a*b exceeds
+// the largest float64 even though a*b/100 would not, so the two reordered
+// forms are tried next. A result that is still infinite is a genuine
+// overflow and is reported by Calculate.
+func percentOf(a, b float64) float64 {
+	for _, r := range [...]func() float64{
+		func() float64 { return a * b / 100 },
+		func() float64 { return a / 100 * b },
+		func() float64 { return a * (b / 100) },
+	} {
+		if v := r(); isFinite(v) {
+			return v
+		}
+	}
+	return math.Inf(1)
 }
 
 // Round rounds x to SignificantDigits significant digits. It formats the
