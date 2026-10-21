@@ -76,3 +76,26 @@ export function displayWidth(formatted: string): number {
   }
   return Math.max(Math.round(width * 100) / 100, 1)
 }
+
+const FROM_SUPERSCRIPT: Record<string, string> = Object.fromEntries(
+  Object.entries(SUPERSCRIPT).map(([plain, superscript]) => [superscript, plain]),
+)
+
+function sayMinus(text: string): string {
+  return text.startsWith(MINUS) || text.startsWith('-') ? `minus ${text.slice(1)}` : text
+}
+
+/**
+ * The value as a screen reader should say it: "minus 1,234.5", and "8.9 times
+ * 10 to the power of 29" instead of superscript digits. Text that is not a
+ * number is returned unchanged.
+ */
+export function spokenValue(raw: string): string {
+  const formatted = formatDisplayValue(raw)
+  const match = /^(.+) × 10([⁻⁰¹²³⁴-⁹]+)$/u.exec(formatted)
+  if (!match) {
+    return sayMinus(formatted)
+  }
+  const exponent = [...match[2]].map((char) => FROM_SUPERSCRIPT[char]).join('')
+  return `${sayMinus(match[1])} times 10 to the power of ${sayMinus(exponent)}`
+}

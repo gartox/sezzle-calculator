@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { displayWidth, formatDisplayValue, isNumeric } from './formatDisplay'
+import { displayWidth, formatDisplayValue, isNumeric, spokenValue } from './formatDisplay'
 
 describe('formatDisplayValue', () => {
   it.each([
@@ -53,5 +53,19 @@ describe('displayWidth', () => {
     ['Error', 5],
   ])('%s → %s digit widths', (text, expected) => {
     expect(displayWidth(text)).toBeCloseTo(expected)
+  })
+})
+
+describe('spokenValue', () => {
+  it.each([
+    ['30', '30'],
+    ['-5', 'minus 5'],
+    ['-1234.5', 'minus 1,234.5'],
+    ['8.88888888889e+29', '8.88888888889 times 10 to the power of 29'],
+    ['-1.5e-7', 'minus 1.5 times 10 to the power of minus 7'],
+    ['5e-324', '5 times 10 to the power of minus 324'],
+    ['Error', 'Error'],
+  ])('%s is said as %s', (raw, spoken) => {
+    expect(spokenValue(raw)).toBe(spoken)
   })
 })

@@ -11,4 +11,5 @@ type Story = StoryObj<typeof meta>
 
 export const Backspace: Story = { args: { name: 'backspace' } }
 export const History: Story = { args: { name: 'history' } }
+export const Copy: Story = { args: { name: 'copy' } }
 export const Large: Story = { args: { name: 'backspace', size: 32 } }

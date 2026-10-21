@@ -16,6 +16,22 @@ describe('DisplayValue', () => {
     expect(value.style.getPropertyValue('--chars')).toBe('9.5')
   })
 
+  it.each([
+    ['-5', 'minus 5, copy'],
+    ['1e+20', '1 × 10²⁰, 1 times 10 to the power of 20, copy'],
+  ])('names %s as it is said: %s', (value, name) => {
+    render(<DisplayValue value={value} />)
+    expect(screen.getByRole('button', { name })).toBeInTheDocument()
+  })
+
+  it('shows a copy icon at rest and no button for text that is not a number', () => {
+    const { container, rerender } = render(<DisplayValue value="7" />)
+    expect(container.querySelector('[data-icon="copy"]')).toBeInTheDocument()
+    rerender(<DisplayValue value="Error" />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-icon="copy"]')).not.toBeInTheDocument()
+  })
+
   it('copies the raw value, confirms it and announces it politely', async () => {
     const writeClipboard = vi.fn(async () => {})
     render(<DisplayValue value="1234.5" writeClipboard={writeClipboard} />)
