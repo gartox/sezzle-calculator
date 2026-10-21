@@ -25,15 +25,27 @@ func TestOpenAPIErrorCodesMatchHandler(t *testing.T) {
 }
 
 func TestOpenAPIOperationsMatchCalculator(t *testing.T) {
-	spec := specEnum(t, "Operation")
-	code := make([]string, 0, len(calculator.Operations))
+	var all, unary, binary []string
 	for _, op := range calculator.Operations {
-		code = append(code, string(op))
+		all = append(all, string(op))
+		if op.Unary() {
+			unary = append(unary, string(op))
+		} else {
+			binary = append(binary, string(op))
+		}
 	}
-	slices.Sort(code)
+	for _, list := range [][]string{all, unary, binary} {
+		slices.Sort(list)
+	}
 
-	if !slices.Equal(spec, code) {
-		t.Fatalf("operations differ\n  openapi.yaml: %v\n  calculator:   %v", spec, code)
+	for schema, want := range map[string][]string{
+		"Operation":       all,
+		"UnaryOperation":  unary,
+		"BinaryOperation": binary,
+	} {
+		if got := specEnum(t, schema); !slices.Equal(got, want) {
+			t.Errorf("%s differs\n  openapi.yaml: %v\n  calculator:   %v", schema, got, want)
+		}
 	}
 }
 

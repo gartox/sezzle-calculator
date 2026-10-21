@@ -131,3 +131,11 @@ func TestRound(t *testing.T) {
 		})
 	}
 }
+
+func TestUnary(t *testing.T) {
+	for _, op := range Operations {
+		if got, want := op.Unary(), op == Sqrt; got != want {
+			t.Errorf("%s.Unary() = %v, want %v", op, got, want)
+		}
+	}
+}

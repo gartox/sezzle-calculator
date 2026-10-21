@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, CALCULATE_PATH, OPERATIONS, calculate } from './client'
+import { ApiError, CALCULATE_PATH, OPERATIONS, calculate, requestBody } from './client'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -124,5 +124,21 @@ describe('calculate', () => {
     expect(error.status).toBe(0)
     expect(error.requestId).toBeUndefined()
     expect(error.message).not.toBe('')
+  })
+})
+
+describe('requestBody', () => {
+  it('builds the unary shape for sqrt, dropping b', () => {
+    expect(requestBody('sqrt', 16, 3)).toEqual({ operation: 'sqrt', a: 16 })
+  })
+
+  it('builds the binary shape with b', () => {
+    expect(requestBody('percent', 15, 200)).toEqual({ operation: 'percent', a: 15, b: 200 })
+  })
+
+  it('refuses a binary operation without b instead of sending it', async () => {
+    expect(() => requestBody('add', 1)).toThrow(TypeError)
+    await expect(calculate('add', 1)).rejects.toThrow('Operation "add" needs a second operand.')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

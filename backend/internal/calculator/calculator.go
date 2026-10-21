@@ -41,6 +41,12 @@ var (
 // staying well within what float64 can represent.
 const SignificantDigits = 12
 
+// Unary reports whether op takes a single operand. Sqrt is the only one;
+// every other operation needs both a and b.
+func (op Operation) Unary() bool {
+	return op == Sqrt
+}
+
 // ParseOperation validates s and converts it into an Operation.
 func ParseOperation(s string) (Operation, error) {
 	op := Operation(s)
@@ -63,7 +69,7 @@ func Calculate(op Operation, a, b float64) (float64, error) {
 	if !isFinite(a) {
 		return 0, fmt.Errorf("%w: a", ErrInvalidOperand)
 	}
-	if op != Sqrt && !isFinite(b) {
+	if !op.Unary() && !isFinite(b) {
 		return 0, fmt.Errorf("%w: b", ErrInvalidOperand)
 	}
 

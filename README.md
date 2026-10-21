@@ -314,6 +314,8 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 
 Playwright drives the real stack: the Go binary serving the built frontend. Three browser tests (add, divide by zero, square root) use accessible locators only, and twelve API tests cover the health endpoint, rounding, each main error code, the `405` with its `Allow` header, a malformed body, the `415` for a non-JSON body, the security headers, request IDs and the OpenAPI endpoint. The suite starts the server with `RATE_LIMIT_RPS=0`; the `429` path is covered by unit tests instead.
 
+A contract suite (`e2e/tests/contract.spec.ts`) checks the OpenAPI document against the running server. It loads the document the server serves and validates representative requests against `CalculateRequest`. A request the schema accepts must not come back `400`, and one it rejects must. Every response body must then match the schema documented for its status. The one rule JSON Schema cannot express, a literal too small or too large for a 64-bit float, is listed as an explicit case. This uses two small dev dependencies in the e2e package only: `ajv`, a JSON Schema 2020-12 validator matching the dialect of OpenAPI 3.1, and `yaml` to parse the document. The Go side stays on the standard library and checks the enums against the code.
+
 Install once (dependencies and Chromium):
 
 ```bash

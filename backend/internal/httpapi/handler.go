@@ -119,7 +119,7 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var b float64
-	if op != calculator.Sqrt {
+	if !op.Unary() {
 		if req.B == nil {
 			writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, fmt.Sprintf("Operand \"b\" is required for %q.", op))
 			return

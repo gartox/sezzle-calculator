@@ -37,8 +37,29 @@ export const OPERATIONS: readonly OperationOption[] = (
   Object.keys(OPERATION_LABELS) as Operation[]
 ).map((value) => ({ value, label: OPERATION_LABELS[value] }))
 
+type UnaryOperation = Schemas['UnaryOperation']
+
 /** Operations that take a single operand. */
-export const UNARY_OPERATIONS: ReadonlySet<Operation> = new Set<Operation>(['sqrt'])
+export const UNARY_OPERATIONS: ReadonlySet<Operation> = new Set<UnaryOperation>(['sqrt'])
+
+function isUnary(operation: Operation): operation is UnaryOperation {
+  return UNARY_OPERATIONS.has(operation)
+}
+
+/**
+ * Builds the body in the contract's shape: a unary request carries only `a`,
+ * a binary request needs `b` too. A binary call without `b` is a bug in the
+ * caller, not a request worth sending, so it throws.
+ */
+export function requestBody(operation: Operation, a: number, b?: number): CalculateRequest {
+  if (isUnary(operation)) {
+    return { operation, a }
+  }
+  if (b === undefined) {
+    throw new TypeError(`Operation "${operation}" needs a second operand.`)
+  }
+  return { operation, a, b }
+}
 
 export const CALCULATE_PATH = '/api/v1/calculate'
 
@@ -85,10 +106,7 @@ function isErrorEnvelope(body: unknown): body is Schemas['ErrorResponse'] {
  * For unary operations (sqrt) `b` is omitted from the request.
  */
 export async function calculate(operation: Operation, a: number, b?: number): Promise<number> {
-  const payload: CalculateRequest = { operation, a }
-  if (!UNARY_OPERATIONS.has(operation)) {
-    payload.b = b
-  }
+  const payload = requestBody(operation, a, b)
 
   let response: Response
   try {
