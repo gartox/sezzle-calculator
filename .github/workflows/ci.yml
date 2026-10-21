@@ -174,12 +174,13 @@ jobs:
   # Publishes the tested image to GitHub Container Registry, only for pushes to
   # main and only after every other job has passed. It needs no secret beyond
   # the workflow token. scripts/publish.sh does the work and is covered by
-  # scripts/publish_test.sh: the commit tag is pushed only after the registry
-  # says it does not exist (any other lookup error fails the job), and latest
-  # is pointed at the published digest only while this commit is still the
-  # head of main. Together with the concurrency group, which runs publishes on
-  # main one at a time, that check keeps an older run from moving latest
-  # backwards. A rerun after a failed promotion finishes the promotion.
+  # scripts/publish_test.sh: it asks the registry's distribution API whether
+  # the commit tag exists and pushes only on a 404 MANIFEST_UNKNOWN (any other
+  # answer fails the job), and points latest at the published digest only
+  # while this commit is still the head of main. Ordering between concurrent
+  # runs is enforced by the concurrency group, which runs publishes on main one
+  # at a time, together with that head check. A rerun after a failed promotion
+  # finishes it. scripts/check-workflow.sh keeps this job's shape from drifting.
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [backend, frontend, e2e, security, scripts, image]
@@ -195,7 +196,7 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: image
-      - name: Load the tested image
+      - name: Load and verify the tested image
         run: |
           gunzip -c image.tar.gz | docker load
           loaded="$(docker image inspect --format '{{.Id}}' sezzle-calculator:ci)"
@@ -205,7 +206,10 @@ jobs:
           fi
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      # The image is passed by the ID verified above, not by a tag that could
+      # point elsewhere. GITHUB_TOKEN gets a pull token for the registry lookup.
       - name: Publish the commit tag and promote latest
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/publish.sh sezzle-calculator:ci "${{ github.sha }}" ghcr.io/gartox/sezzle-calculator
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/publish.sh "${{ needs.image.outputs.image-id }}" "${{ github.sha }}" ghcr.io/gartox/sezzle-calculator
