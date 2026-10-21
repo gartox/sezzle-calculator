@@ -10,11 +10,46 @@
   text-align: right;
 }
 
+.refRow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* Small but still a 24 px target, as WCAG 2.5.8 asks. */
 .ref {
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  cursor: copy;
+}
+
+.ref:hover {
+  background: color-mix(in srgb, var(--color-surface-display) 80%, var(--color-text));
+}
+
+.ref:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.feedback {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
-  overflow-wrap: anywhere;
+  opacity: 0;
+  transition: opacity var(--motion-duration-normal) var(--motion-easing);
+}
+
+.feedback[data-visible='true'] {
+  opacity: 1;
 }
 
 .code {

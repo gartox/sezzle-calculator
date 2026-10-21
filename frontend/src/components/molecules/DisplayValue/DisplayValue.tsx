@@ -1,21 +1,8 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 import VisuallyHidden from '../../atoms/VisuallyHidden/VisuallyHidden'
+import { useCopyFeedback, writeToClipboard } from '../../useCopyFeedback'
 import styles from './DisplayValue.module.css'
 import { displayWidth, formatDisplayValue, isNumeric } from './formatDisplay'
-
-type Feedback = 'copied' | 'failed' | null
-
-const FEEDBACK_TEXT: Record<Exclude<Feedback, null>, string> = {
-  copied: 'Copied',
-  failed: 'Copy failed',
-}
-
-function writeToClipboard(text: string): Promise<void> {
-  if (!navigator.clipboard) {
-    return Promise.reject(new Error('Clipboard unavailable'))
-  }
-  return navigator.clipboard.writeText(text)
-}
 
 interface DisplayValueProps {
   /** The raw value, as typed or as returned by the API: "1234.5", "Error". */
@@ -37,27 +24,9 @@ function DisplayValue({
   feedbackMs = 1600,
 }: DisplayValueProps) {
   const formatted = formatDisplayValue(value)
-  const [feedback, setFeedback] = useState<Feedback>(null)
-
-  useEffect(() => {
-    if (!feedback) {
-      return
-    }
-    const timer = setTimeout(() => setFeedback(null), feedbackMs)
-    return () => clearTimeout(timer)
-  }, [feedback, feedbackMs])
-
-  async function copy() {
-    try {
-      await writeClipboard(value)
-      setFeedback('copied')
-    } catch {
-      setFeedback('failed')
-    }
-  }
+  const { feedback, message, copy } = useCopyFeedback(writeClipboard, feedbackMs)
 
   const style = { '--chars': displayWidth(formatted) } as CSSProperties
-  const message = feedback ? FEEDBACK_TEXT[feedback] : ''
 
   return (
     <div className={styles.wrap}>
@@ -66,7 +35,7 @@ function DisplayValue({
           type="button"
           className={styles.value}
           style={style}
-          onClick={copy}
+          onClick={() => copy(value)}
           aria-label={`${formatted}, copy`}
         >
           {formatted}

@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import ErrorNotice from './ErrorNotice'
 
 const meta = {
   title: 'Molecules/ErrorNotice',
   component: ErrorNotice,
+  args: { writeClipboard: fn(async () => {}) },
   decorators: [
     (Story) => (
       <div style={{ maxWidth: 320, padding: 16, background: 'var(--color-surface-display)' }}>
@@ -37,4 +39,18 @@ export const Gallery: Story = {
       <ErrorNotice message="Could not reach the calculator service." />
     </div>
   ),
+}
+
+/** Activating the Ref copies the whole request ID and confirms it. */
+export const CopyRef: Story = {
+  args: { message: 'Cannot divide by zero.', requestId: '3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e' },
+  globals: { theme: 'light' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: /^Ref 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e/ }),
+    )
+    await expect(args.writeClipboard).toHaveBeenCalledWith('3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e')
+    await expect(await canvas.findAllByText('Copied')).toHaveLength(2)
+  },
 }
