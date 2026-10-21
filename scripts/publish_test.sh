@@ -76,6 +76,15 @@ case $url in
       no-digest) printf 'HTTP/2 200\r\ncontent-type: application/json\r\n\r\n' >"$headers"; printf 200 ;;
       exit-empty) echo "curl: (7) Failed to connect to ghcr.io port 443" >&2; exit 7 ;;
       partial) printf 'HTTP/2 200\r\ndocker-con' >"$headers"; printf 20; echo "curl: (18) transfer closed with outstanding read data remaining" >&2; exit 18 ;;
+      # Complete headers with a valid digest and a 200 on stdout, then the
+      # body is cut off: only the exit status says the lookup failed.
+      partial-200)
+        printf 'HTTP/2 200\r\ndocker-content-digest: %s\r\n\r\n' "$FAKE_DIGEST" >"$headers"
+        printf '{"schemaVer' >"$output"
+        printf 200
+        echo "curl: (18) transfer closed with outstanding read data remaining" >&2
+        exit 18
+        ;;
       registry)
         if [ -f "$FAKE_STATE/registry/$tag" ]; then
           printf 'HTTP/2 200\r\ncontent-type: application/vnd.oci.image.index.v1+json\r\ndocker-content-digest: %s\r\n\r\n' "$FAKE_DIGEST" >"$headers"
@@ -216,7 +225,7 @@ check "present: pushes latest" called "$pushed_latest"
 # 3. Every other lookup answer fails closed, whether or not the tag exists:
 #    nothing is tagged, pushed or promoted.
 for seed in absent present; do
-  for mode in unauthorized forbidden rate-limited server-error timeout name-unknown mixed-404 empty-404 exit-empty partial; do
+  for mode in unauthorized forbidden rate-limited server-error timeout name-unknown mixed-404 empty-404 exit-empty partial partial-200; do
     new_state "lookup-$mode-$seed" "$seed"
     publish FAKE_LOOKUP="$mode"
     check "lookup $mode, tag $seed: fails" failed_run
@@ -244,7 +253,7 @@ check "wrong credentials: pushes nothing" not_called "docker "
 # 6. Resolving the digest fails after the push: non-zero exit with empty
 #    output, non-zero exit with partial output, or a 200 without a digest.
 #    The script must stop before promoting.
-for mode in exit-empty partial no-digest; do
+for mode in exit-empty partial partial-200 no-digest; do
   new_state "digest-$mode"
   publish FAKE_LOOKUP_2="$mode"
   check "digest $mode after push: fails" failed_run
