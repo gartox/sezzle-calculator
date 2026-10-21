@@ -10,6 +10,11 @@ IMAGE := sezzle-calculator
 
 .DEFAULT_GOAL := help
 
+# gofmt -l lists files that need formatting, and when a file does not parse it
+# lists nothing and exits non-zero. Both cases must fail the check.
+GOFMT_CHECK = unformatted="$$(gofmt -l .)" || { echo "gofmt failed"; exit 1; }; \
+	if [ -n "$$unformatted" ]; then echo "gofmt would change:"; echo "$$unformatted"; exit 1; fi
+
 .PHONY: help test coverage build run clean lint format format-check \
         backend-test backend-coverage backend-build \
         frontend-install frontend-test frontend-coverage frontend-build \
@@ -41,7 +46,7 @@ run: build
 
 ## lint: gofmt check and go vet on the backend, oxlint in frontend and e2e
 lint: $(FRONTEND)/node_modules $(E2E)/node_modules
-	cd $(BACKEND) && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt would change:"; echo "$$unformatted"; exit 1; fi
+	cd $(BACKEND) && $(GOFMT_CHECK)
 	cd $(BACKEND) && go vet ./...
 	cd $(FRONTEND) && npm run lint
 	cd $(E2E) && npm run lint
@@ -54,7 +59,7 @@ format: $(FRONTEND)/node_modules $(E2E)/node_modules
 
 ## format-check: fail if gofmt or Prettier would change any file (what CI runs)
 format-check: $(FRONTEND)/node_modules $(E2E)/node_modules
-	cd $(BACKEND) && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt would change:"; echo "$$unformatted"; exit 1; fi
+	cd $(BACKEND) && $(GOFMT_CHECK)
 	cd $(FRONTEND) && npm run format:check
 	cd $(E2E) && npm run format:check
 
