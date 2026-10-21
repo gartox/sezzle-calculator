@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import type { BinaryOperator, KeypadAction } from '../../../calculator/keypad'
 import Icon from '../../atoms/Icon/Icon'
 import Key, { type KeyVariant } from '../../atoms/Key/Key'
@@ -116,6 +116,8 @@ interface KeypadProps {
   historyOpen?: boolean
   /** The id of the history panel the toggle controls. */
   historyId?: string
+  /** The History toggle, so focus can return to it when the sheet closes. */
+  historyToggleRef?: Ref<HTMLButtonElement>
 }
 
 /** The function row and the 4-column keypad. Every key is a named button. */
@@ -127,6 +129,7 @@ function Keypad({
   onToggleHistory,
   historyOpen = false,
   historyId,
+  historyToggleRef,
 }: KeypadProps) {
   const render = (key: KeyDef) => (
     <Key
@@ -151,6 +154,7 @@ function Keypad({
               <Icon name="history" size={18} /> History
             </>
           }
+          ref={historyToggleRef}
           name="History"
           variant="function"
           className={styles.historyToggle}

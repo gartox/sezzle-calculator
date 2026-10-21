@@ -4,6 +4,7 @@ import {
   HISTORY_LIMIT,
   type HistoryStorage,
   addEntry,
+  createEntry,
   defaultStorage,
   loadHistory,
   saveHistory,
@@ -35,15 +36,28 @@ afterEach(() => {
 describe('history', () => {
   it('round-trips entries through storage', () => {
     const storage = memoryStorage()
-    const entries = [{ expression: '15 % of 200 =', result: '30' }]
-    saveHistory(storage, entries)
-    expect(loadHistory(storage)).toEqual(entries)
+    saveHistory(storage, [createEntry('15 % of 200 =', '30')])
+    expect(loadHistory(storage)).toEqual([
+      { id: expect.any(String), expression: '15 % of 200 =', result: '30' },
+    ])
+  })
+
+  it('gives every entry an id unique in the page, also when loaded', () => {
+    const first = createEntry('1 + 1 =', '2')
+    const second = createEntry('1 + 1 =', '2')
+    expect(first.id).not.toBe(second.id)
+    const saved = JSON.stringify([
+      { id: 'same', expression: '1 =', result: '1' },
+      { id: 'same', expression: '2 =', result: '2' },
+    ])
+    const loaded = loadHistory(memoryStorage(saved))
+    expect(new Set(loaded.map((entry) => entry.id)).size).toBe(2)
   })
 
   it('keeps the newest first and at most ten', () => {
     let entries: ReturnType<typeof loadHistory> = []
     for (let i = 1; i <= HISTORY_LIMIT + 2; i++) {
-      entries = addEntry(entries, { expression: `${i} + 0 =`, result: String(i) })
+      entries = addEntry(entries, createEntry(`${i} + 0 =`, String(i)))
     }
     expect(entries).toHaveLength(HISTORY_LIMIT)
     expect(entries[0].result).toBe('12')
@@ -67,14 +81,14 @@ describe('history', () => {
     ])
     const loaded = loadHistory(memoryStorage(saved))
     expect(loaded).toHaveLength(HISTORY_LIMIT)
-    expect(loaded[0]).toEqual({ expression: 'ok =', result: '1' })
+    expect(loaded[0]).toMatchObject({ expression: 'ok =', result: '1' })
   })
 
   it('works without storage and when storage throws', () => {
     expect(loadHistory(null)).toEqual([])
     expect(loadHistory(throwing)).toEqual([])
     expect(() => saveHistory(null, [])).not.toThrow()
-    expect(() => saveHistory(throwing, [{ expression: '1 =', result: '1' }])).not.toThrow()
+    expect(() => saveHistory(throwing, [createEntry('1 =', '1')])).not.toThrow()
   })
 
   it('uses sessionStorage by default and survives a browser that refuses it', () => {

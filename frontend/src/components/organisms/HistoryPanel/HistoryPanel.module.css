@@ -18,12 +18,14 @@
 
 .title {
   margin: 0;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
 }
 
 .close {
-  min-height: 32px;
+  min-width: var(--size-target-min);
+  min-height: var(--size-target-min);
   padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
@@ -57,9 +59,12 @@
   font-size: var(--font-size-sm);
 }
 
-/* From 900 px the panel is always beside the calculator, so there is nothing to close. */
-@media (min-width: 900px) {
-  .close {
-    display: none;
-  }
+/* The heading takes focus when the sheet opens; the ring shows only for keyboard users. */
+.title:focus {
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: 2px;
 }

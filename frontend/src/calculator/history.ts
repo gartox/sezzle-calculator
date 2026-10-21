@@ -3,6 +3,8 @@
 // and the calculator works without it.
 
 export interface HistoryEntry {
+  /** Stable within the session, so the list does not remount rows on insert. */
+  id: string
   expression: string
   result: string
 }
@@ -25,7 +27,15 @@ export function defaultStorage(): HistoryStorage | null {
   }
 }
 
-function isEntry(value: unknown): value is HistoryEntry {
+let lastId = 0
+
+/** A new entry with an id unique in this page. */
+export function createEntry(expression: string, result: string): HistoryEntry {
+  lastId += 1
+  return { id: `h${Date.now().toString(36)}-${lastId}`, expression, result }
+}
+
+function isEntry(value: unknown): value is Omit<HistoryEntry, 'id'> {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -41,7 +51,14 @@ export function loadHistory(storage: HistoryStorage | null): HistoryEntry[] {
   }
   try {
     const parsed: unknown = JSON.parse(storage.getItem(HISTORY_KEY) ?? '[]')
-    return Array.isArray(parsed) ? parsed.filter(isEntry).slice(0, HISTORY_LIMIT) : []
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    // Saved ids are not trusted to be unique; every load gets fresh ones.
+    return parsed
+      .filter(isEntry)
+      .slice(0, HISTORY_LIMIT)
+      .map((entry) => createEntry(entry.expression, entry.result))
   } catch {
     return []
   }

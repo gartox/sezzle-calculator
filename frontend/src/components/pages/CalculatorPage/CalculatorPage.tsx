@@ -1,32 +1,37 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { calculate as apiCalculate } from '../../../api/client'
 import { checkHealth as apiCheckHealth } from '../../../api/health'
 import {
   type HistoryEntry,
   type HistoryStorage,
   addEntry,
+  createEntry,
   defaultStorage,
   loadHistory,
   saveHistory,
 } from '../../../calculator/history'
 import {
-  actionForKey,
+  type HistoryRecord,
   activeOperator,
+  announcementText,
   canEquals,
+  canRetry,
   expressionOf,
-  keyIdFor,
+  writeTokens,
 } from '../../../calculator/keypad'
 import { type CalculateFn, useCalculator } from '../../../calculator/useCalculator'
 import { useHealth } from '../../../calculator/useHealth'
-import { formatDisplayValue } from '../../molecules/DisplayValue/formatDisplay'
+import { useKeyboardKeypad } from '../../../calculator/useKeyboardKeypad'
+import { formatDisplayValue, spokenValue } from '../../molecules/DisplayValue/formatDisplay'
 import CalculatorHeader from '../../organisms/CalculatorHeader/CalculatorHeader'
 import Display from '../../organisms/Display/Display'
 import HistoryPanel from '../../organisms/HistoryPanel/HistoryPanel'
 import Keypad, { type EqualsState } from '../../organisms/Keypad/Keypad'
 import CalculatorTemplate from '../../templates/CalculatorTemplate/CalculatorTemplate'
+import { useMediaQuery } from '../../useMediaQuery'
 
-/** How long a key typed on the keyboard shows its pressed state on screen. */
-const PRESS_FLASH_MS = 150
+/** From this width the history sits beside the calculator instead of in a sheet. */
+const WIDE_LAYOUT = '(min-width: 900px)'
 
 export interface CalculatorPageProps {
   /** The API client; stories and tests pass a fake. */
@@ -38,17 +43,7 @@ export interface CalculatorPageProps {
   writeClipboard?: (text: string) => Promise<void>
 }
 
-/** True for a key event a focused control should handle itself. */
-function belongsToControl(event: KeyboardEvent): boolean {
-  const target = event.target
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
-    return true
-  // Enter and Space activate a focused button; do not press a second key.
-  return (event.key === 'Enter' || event.key === ' ') && target.tagName === 'BUTTON'
-}
-
-/** The calculator: keypad state, API calls, history, health and keyboard. */
+/** The calculator: wires the keypad state, API calls, history, health and keyboard together. */
 function CalculatorPage({
   calculate = apiCalculate,
   checkHealth = apiCheckHealth,
@@ -58,53 +53,53 @@ function CalculatorPage({
   const [store] = useState(() => (storage === undefined ? defaultStorage() : storage))
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory(store))
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [pressedKey, setPressedKey] = useState<string | null>(null)
   const historyId = useId()
+  const historyToggle = useRef<HTMLButtonElement>(null)
+  const wide = useMediaQuery(WIDE_LAYOUT)
+  // On a wide screen there is no sheet to keep open, so widening closes it
+  // (adjusted during render rather than in an effect).
+  const [wasWide, setWasWide] = useState(wide)
+  if (wide !== wasWide) {
+    setWasWide(wide)
+    if (wide) setHistoryOpen(false)
+  }
+  const sheetOpen = historyOpen && !wide
   const health = useHealth(checkHealth)
-  const addToHistory = useCallback(
-    (entry: HistoryEntry) => setHistory((h) => addEntry(h, entry)),
-    [],
-  )
+
+  const addToHistory = useCallback((record: HistoryRecord) => {
+    const expression = `${writeTokens(record.tokens, formatDisplayValue)} =`
+    setHistory((entries) => addEntry(entries, createEntry(expression, record.result)))
+  }, [])
   const { state, busy, press } = useCalculator({
     calculate,
-    format: formatDisplayValue,
     onResult: addToHistory,
+    onSuccess: health.reportSuccess,
     onNetworkError: health.recheck,
+  })
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
+  const { pressedKey } = useKeyboardKeypad({
+    press,
+    paused: sheetOpen,
+    onPausedEscape: closeHistory,
   })
 
   useEffect(() => {
     saveHistory(store, history)
   }, [store, history])
 
+  // However the sheet closes, focus goes back to the toggle that opened it.
+  const sheetWasOpen = useRef(false)
   useEffect(() => {
-    if (!pressedKey) return
-    const timer = setTimeout(() => setPressedKey(null), PRESS_FLASH_MS)
-    return () => clearTimeout(timer)
-  }, [pressedKey])
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
-      if (belongsToControl(event)) return
-      if (event.key === 'Escape' && historyOpen) {
-        setHistoryOpen(false)
-        return
-      }
-      const action = actionForKey(event.key)
-      if (!action) return
-      event.preventDefault()
-      press(action)
-      setPressedKey(keyIdFor(action))
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [historyOpen, press])
+    if (sheetWasOpen.current && !sheetOpen && !wide) historyToggle.current?.focus()
+    sheetWasOpen.current = sheetOpen
+  }, [sheetOpen, wide])
 
   const equals: EqualsState = busy
     ? 'busy'
-    : canEquals(state) || state.pending
+    : canEquals(state) || canRetry(state) || state.pending
       ? 'ready'
       : 'inactive'
+  const error = state.error && { ...state.error, retryable: canRetry(state) }
 
   return (
     <CalculatorTemplate
@@ -113,9 +108,10 @@ function CalculatorPage({
         <Display
           expression={expressionOf(state, formatDisplayValue)}
           value={state.entry}
-          error={state.error}
+          error={error}
           busy={busy}
-          announcement={state.announcement}
+          announcement={state.announcement ? announcementText(state.announcement, spokenValue) : ''}
+          announcementId={state.announcement?.seq}
           writeClipboard={writeClipboard}
         />
       }
@@ -126,8 +122,9 @@ function CalculatorPage({
           equals={equals}
           pressedKey={pressedKey}
           onToggleHistory={() => setHistoryOpen((open) => !open)}
-          historyOpen={historyOpen}
+          historyOpen={sheetOpen}
           historyId={historyId}
+          historyToggleRef={historyToggle}
         />
       }
       history={
@@ -136,13 +133,14 @@ function CalculatorPage({
           entries={history}
           onSelect={(result) => {
             press({ type: 'useValue', value: result })
-            setHistoryOpen(false)
+            closeHistory()
           }}
-          onClose={() => setHistoryOpen(false)}
+          modal={sheetOpen}
+          onClose={closeHistory}
         />
       }
-      historyOpen={historyOpen}
-      onCloseHistory={() => setHistoryOpen(false)}
+      historyOpen={sheetOpen}
+      onCloseHistory={closeHistory}
     />
   )
 }

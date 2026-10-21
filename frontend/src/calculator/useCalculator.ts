@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { ApiError, type Operation } from '../api/client'
-import type { HistoryEntry } from './history'
 import {
   type CalculationError,
+  type HistoryRecord,
   type KeypadAction,
-  historyEntryFor,
   initialKeypadState,
   keypadReducer,
 } from './keypad'
@@ -12,76 +11,94 @@ import {
 /** The busy state appears only for answers slower than this, to avoid flicker. */
 export const BUSY_DELAY_MS = 300
 
-export type CalculateFn = (operation: Operation, a: number, b?: number) => Promise<number>
+/** A calculation not answered within this time fails with a message instead of hanging. */
+export const REQUEST_TIMEOUT_MS = 8000
+
+export const TIMEOUT_ERROR: CalculationError = {
+  message: 'The calculator did not answer.',
+  code: 'TIMEOUT',
+}
+
+export type CalculateFn = (
+  operation: Operation,
+  a: number,
+  b?: number,
+  signal?: AbortSignal,
+) => Promise<number>
 
 interface Options {
   calculate: CalculateFn
   /** Called with each completed calculation, for the history. */
-  onResult?: (entry: HistoryEntry) => void
+  onResult?: (record: HistoryRecord) => void
+  /** Called when a calculation succeeds, to clear an Offline status. */
+  onSuccess?: () => void
   /** Called when the API could not be reached, to re-check its health. */
   onNetworkError?: () => void
-  /** Formats operands in history expressions. */
-  format?: (raw: string) => string
 }
 
 function toCalculationError(error: unknown): CalculationError {
   if (error instanceof ApiError) {
     return { message: error.message, requestId: error.requestId, code: error.code }
   }
-  return { message: 'Something went wrong. Please try again.' }
+  return { message: 'Something went wrong.' }
 }
 
 /**
- * Runs the keypad reducer and the API calls it asks for. Answers that arrive
- * after the component is gone are ignored.
+ * Runs the keypad reducer and the API calls it asks for. A request is
+ * cancelled when the keypad no longer waits for it (AC, or the component
+ * going away) and fails after REQUEST_TIMEOUT_MS; late answers are ignored.
  */
-export function useCalculator({ calculate, onResult, onNetworkError, format }: Options) {
+export function useCalculator({ calculate, onResult, onSuccess, onNetworkError }: Options) {
   const [state, dispatch] = useReducer(keypadReducer, initialKeypadState)
   const [busy, setBusy] = useState(false)
-  const latest = useRef({ calculate, onResult, onNetworkError, format })
+  const latest = useRef({ calculate, onResult, onSuccess, onNetworkError })
   useEffect(() => {
-    latest.current = { calculate, onResult, onNetworkError, format }
+    latest.current = { calculate, onResult, onSuccess, onNetworkError }
   })
 
-  const { pending } = state
-  const hadOperator = state.operator !== null
+  const { pending, record } = state
 
   useEffect(() => {
     if (!pending) {
       return
     }
     let active = true
+    const controller = new AbortController()
+    const { calculate: send, onSuccess: reachable, onNetworkError: offline } = latest.current
+    const fail = (error: CalculationError) => {
+      dispatch({ type: 'failed', error })
+      if (error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT') offline?.()
+    }
     const busyTimer = setTimeout(() => setBusy(true), BUSY_DELAY_MS)
-    const {
-      calculate: send,
-      onResult: report,
-      onNetworkError: offline,
-      format: fmt,
-    } = latest.current
-    send(pending.operation, pending.a, pending.b)
-      .then((result) => {
+    const timeout = setTimeout(() => {
+      active = false
+      controller.abort()
+      fail(TIMEOUT_ERROR)
+    }, REQUEST_TIMEOUT_MS)
+
+    send(pending.operation, pending.a, pending.b, controller.signal).then(
+      (result) => {
         if (!active) return
         dispatch({ type: 'resolved', result })
-        const entry = historyEntryFor(pending, result, hadOperator, fmt)
-        if (entry) report?.(entry)
-      })
-      .catch((error: unknown) => {
+        reachable?.()
+      },
+      (error: unknown) => {
         if (!active) return
-        const calculationError = toCalculationError(error)
-        dispatch({ type: 'failed', error: calculationError })
-        if (calculationError.code === 'NETWORK_ERROR') offline?.()
-      })
-      .finally(() => {
-        clearTimeout(busyTimer)
-        if (active) setBusy(false)
-      })
+        fail(toCalculationError(error))
+      },
+    )
     return () => {
       active = false
       clearTimeout(busyTimer)
+      clearTimeout(timeout)
+      controller.abort()
+      setBusy(false)
     }
-    // A new pending calculation is the only trigger; hadOperator is read as
-    // it was when that calculation was created.
-  }, [pending]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pending])
+
+  useEffect(() => {
+    if (record) latest.current.onResult?.(record)
+  }, [record])
 
   const press = useCallback((action: KeypadAction) => dispatch(action), [])
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { fakeCalculate } from '../../../test/fakeApi'
 import { memoryStorage } from '../../../test/memoryStorage'
 import CalculatorPage from './CalculatorPage'
@@ -30,7 +30,7 @@ export const WithHistory: Story = {
   args: {
     storage: memoryStorage([
       { expression: '15 % of 200 =', result: '30' },
-      { expression: '5 × 4 =', result: '20' },
+      { expression: '2 + 3 × 4 =', result: '20' },
     ]),
   },
 }
@@ -61,6 +61,47 @@ export const Chaining: Story = {
     )
     await pressKeys(canvas, ['4', 'equals'])
     await expect(await canvas.findByRole('button', { name: '20, copy' })).toBeInTheDocument()
+    await expect(
+      await canvas.findByRole('button', { name: /use 2 \+ 3 × 4 = 20/i }),
+    ).toBeInTheDocument()
+  },
+}
+
+/** Percent inside a chain is a percent of the running total: 200 + 10 % = 220. */
+export const PercentInAChain: Story = {
+  globals: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pressKeys(canvas, ['2', '0', '0', 'add', '1', '0', 'percent of'])
+    const display = canvas.getByRole('group', { name: 'Display' })
+    await waitFor(() => expect(display).toHaveTextContent('200 + 20'))
+    await pressKeys(canvas, ['equals'])
+    await expect(await canvas.findByRole('button', { name: '220, copy' })).toBeInTheDocument()
+  },
+}
+
+/** On a slow network, keys pressed while an answer is on its way are kept and applied in order. */
+export const SlowNetwork: Story = {
+  args: { calculate: fn(fakeCalculate(400)) },
+  globals: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pressKeys(canvas, ['2', 'add', '3', 'multiply', '4', 'equals'])
+    await expect(
+      await canvas.findByRole('button', { name: '20, copy' }, { timeout: 3000 }),
+    ).toBeInTheDocument()
+  },
+}
+
+/** Keys clicked with the mouse, then Enter on the keyboard: Enter calculates. */
+export const MouseThenEnter: Story = {
+  globals: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await pressKeys(canvas, ['2', 'add', '3'])
+    await userEvent.keyboard('{Enter}')
+    await expect(await canvas.findByRole('button', { name: '5, copy' })).toBeInTheDocument()
+    await expect(canvas.getByRole('group', { name: 'Display' })).toHaveTextContent('2 + 3 =')
   },
 }
 

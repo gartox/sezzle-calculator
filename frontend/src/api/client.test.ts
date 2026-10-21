@@ -43,6 +43,15 @@ describe('calculate', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ operation: 'add', a: 2, b: 3 })
   })
 
+  it('passes the abort signal to fetch', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ result: 5 }))
+    const controller = new AbortController()
+
+    await calculate('add', 2, 3, controller.signal)
+
+    expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal)
+  })
+
   it('sends only a for sqrt', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ result: 4 }))
 

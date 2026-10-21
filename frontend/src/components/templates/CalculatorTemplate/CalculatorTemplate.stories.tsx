@@ -16,11 +16,10 @@ const meta = {
     history: (
       <HistoryPanel
         entries={[
-          { expression: '15 % of 200 =', result: '30' },
-          { expression: '5 × 4 =', result: '20' },
+          { id: 'h1', expression: '15 % of 200 =', result: '30' },
+          { id: 'h2', expression: '2 + 3 × 4 =', result: '20' },
         ]}
         onSelect={fn()}
-        onClose={fn()}
       />
     ),
     onCloseHistory: fn(),
@@ -32,5 +31,18 @@ type Story = StoryObj<typeof meta>
 
 /** Phone width hides the history until it is opened; wide screens show it beside the calculator. */
 export const Default: Story = {}
-/** The history sheet open over the calculator, as on a phone. */
-export const HistoryOpen: Story = { args: { historyOpen: true }, globals: { theme: 'light' } }
+/** The history sheet open over the calculator, as on a phone: a modal dialog over an inert card. */
+export const HistoryOpen: Story = {
+  args: {
+    historyOpen: true,
+    history: (
+      <HistoryPanel
+        entries={[{ id: 'h1', expression: '15 % of 200 =', result: '30' }]}
+        onSelect={fn()}
+        modal
+        onClose={fn()}
+      />
+    ),
+  },
+  globals: { theme: 'light' },
+}

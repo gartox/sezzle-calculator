@@ -10,7 +10,7 @@ export type Operation = Schemas['Operation']
 type CalculateRequest = Schemas['CalculateRequest']
 
 /** Codes the client raises itself when there is no usable API response. */
-export type ClientErrorCode = 'NETWORK_ERROR' | 'UNEXPECTED_RESPONSE'
+export type ClientErrorCode = 'NETWORK_ERROR' | 'UNEXPECTED_RESPONSE' | 'TIMEOUT'
 
 /** Every code an {@link ApiError} can carry: the API's codes plus the client's. */
 export type ErrorCode = Schemas['ErrorCode'] | ClientErrorCode
@@ -44,7 +44,7 @@ export const CALCULATE_PATH = '/api/v1/calculate'
 /**
  * Error raised by {@link calculate}. `code` is the backend's error code
  * (for example DIVISION_BY_ZERO) or one of the client-side codes
- * NETWORK_ERROR and UNEXPECTED_RESPONSE. `status` is the HTTP status, or 0
+ * NETWORK_ERROR, UNEXPECTED_RESPONSE and TIMEOUT. `status` is the HTTP status, or 0
  * when no response was received. `requestId` is set when the backend answered,
  * so a user can quote it.
  */
@@ -81,9 +81,15 @@ function isErrorEnvelope(body: unknown): body is Schemas['ErrorResponse'] {
 
 /**
  * Sends one calculation to the API and resolves with the numeric result.
- * For unary operations (sqrt) `b` is omitted from the request.
+ * For unary operations (sqrt) `b` is omitted from the request. `signal`
+ * cancels the request; the caller owns the timeout.
  */
-export async function calculate(operation: Operation, a: number, b?: number): Promise<number> {
+export async function calculate(
+  operation: Operation,
+  a: number,
+  b?: number,
+  signal?: AbortSignal,
+): Promise<number> {
   const payload = requestBody(operation, a, b)
 
   let response: Response
@@ -92,6 +98,7 @@ export async function calculate(operation: Operation, a: number, b?: number): Pr
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal,
     })
   } catch {
     throw new ApiError('NETWORK_ERROR', 'Could not reach the calculator service.', 0)

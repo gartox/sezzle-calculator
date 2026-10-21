@@ -1,11 +1,11 @@
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ComponentPropsWithRef, ReactNode } from 'react'
 import Spinner from '../Spinner/Spinner'
 import styles from './Key.module.css'
 
 export type KeyVariant = 'digit' | 'operator' | 'function' | 'utility' | 'equals'
 
 export interface KeyProps extends Omit<
-  ComponentPropsWithoutRef<'button'>,
+  ComponentPropsWithRef<'button'>,
   'children' | 'onClick' | 'name'
 > {
   /** What the key shows: a digit, a symbol or an icon. */

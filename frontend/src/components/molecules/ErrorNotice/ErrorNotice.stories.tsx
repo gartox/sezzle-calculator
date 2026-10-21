@@ -23,6 +23,10 @@ export const WithRef: Story = {
 }
 /** Client-side failures, such as the network being down, have no request ID. */
 export const WithoutRef: Story = { args: { message: 'Could not reach the calculator service.' } }
+/** A failure that equals can send again says so. */
+export const Retryable: Story = {
+  args: { message: 'The calculator did not answer.', hint: 'Press = to try again.' },
+}
 export const LongMessage: Story = {
   args: {
     message: 'Too many requests. Try again in 3 seconds.',

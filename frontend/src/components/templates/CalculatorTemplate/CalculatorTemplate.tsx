@@ -6,14 +6,18 @@ interface CalculatorTemplateProps {
   display: ReactNode
   keypad: ReactNode
   history: ReactNode
-  /** On phones the history is a sheet; this opens it. Wide screens always show it. */
+  /**
+   * Opens the phone history sheet. The calculator behind it becomes inert, so
+   * focus and assistive technology stay in the sheet. Wide screens always
+   * show the history beside the calculator and never set this.
+   */
   historyOpen?: boolean
   onCloseHistory?: () => void
 }
 
 /**
- * The responsive layout: one card on phones with the history as a sheet over
- * it, and the history beside the card from 900 px.
+ * The responsive layout: one card on phones with the history as a modal sheet
+ * over it, and the history beside the card from 900 px.
  */
 function CalculatorTemplate({
   header,
@@ -25,7 +29,7 @@ function CalculatorTemplate({
 }: CalculatorTemplateProps) {
   return (
     <div className={styles.layout} data-history-open={historyOpen}>
-      <div className={styles.calculator}>
+      <div className={styles.calculator} inert={historyOpen || undefined}>
         {header}
         {display}
         {keypad}

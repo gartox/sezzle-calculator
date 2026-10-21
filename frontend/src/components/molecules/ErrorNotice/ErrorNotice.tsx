@@ -10,6 +10,8 @@ interface ErrorNoticeProps {
   message: string
   /** The request ID from the error envelope, quoted when reporting a problem. */
   requestId?: string
+  /** A next step shown under the message, such as "Press = to try again." */
+  hint?: string
   /** Writes text to the clipboard. Defaults to the browser clipboard. */
   writeClipboard?: (text: string) => Promise<void>
 }
@@ -21,11 +23,17 @@ interface ErrorNoticeProps {
  * name starts with the visible text, so voice control matches it, and then
  * carries the whole ID.
  */
-function ErrorNotice({ message, requestId, writeClipboard = writeToClipboard }: ErrorNoticeProps) {
+function ErrorNotice({
+  message,
+  requestId,
+  hint,
+  writeClipboard = writeToClipboard,
+}: ErrorNoticeProps) {
   const { feedback, message: copyMessage, copy } = useCopyFeedback(writeClipboard)
   return (
     <div className={styles.notice} role="alert">
       <span>{message}</span>
+      {hint && <span className={styles.hint}>{hint}</span>}
       {requestId && (
         <span className={styles.refRow}>
           <button
