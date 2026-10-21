@@ -31,7 +31,7 @@ function setup(props: Partial<Parameters<typeof CalculatorPage>[0]> = {}) {
 describe('CalculatorPage', () => {
   it('shows the API status from the health check', async () => {
     setup()
-    expect(screen.getByRole('status')).toHaveTextContent('Checking')
+    expect(screen.getByText('Checking')).toBeInTheDocument()
     expect(await screen.findByText('Ready')).toBeInTheDocument()
   })
 
