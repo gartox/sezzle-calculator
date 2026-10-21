@@ -79,11 +79,16 @@
   outline-offset: -2px;
 }
 
-/* Inactive equals: nothing to calculate yet. Still legible, clearly quieter. */
+/*
+ * Inactive equals: nothing to calculate yet. No accent at all, a quiet
+ * surface and a muted glyph, so it reads as unavailable in both themes while
+ * the label still meets 4.5:1.
+ */
 .key[aria-disabled='true'] {
-  --key-bg: var(--color-accent-soft);
-  --key-fg: var(--color-on-accent-soft);
+  --key-bg: var(--color-key-inactive);
+  --key-fg: var(--color-on-key-inactive);
   box-shadow: none;
+  font-weight: var(--font-weight-regular);
   cursor: default;
 }
 
