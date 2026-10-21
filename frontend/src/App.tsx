@@ -1,9 +1,12 @@
+import ErrorBoundary from './ErrorBoundary'
 import CalculatorPage from './components/pages/CalculatorPage/CalculatorPage'
 
 function App() {
   return (
     <main className="app">
-      <CalculatorPage />
+      <ErrorBoundary>
+        <CalculatorPage />
+      </ErrorBoundary>
     </main>
   )
 }
