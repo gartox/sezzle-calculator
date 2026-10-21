@@ -1,11 +1,9 @@
-import Calculator from './components/Calculator'
+import CalculatorPage from './components/pages/CalculatorPage/CalculatorPage'
 
 function App() {
   return (
     <main className="app">
-      <h1>Calculator</h1>
-      <p className="tagline">Basic and advanced arithmetic, computed by the API.</p>
-      <Calculator />
+      <CalculatorPage />
     </main>
   )
 }
