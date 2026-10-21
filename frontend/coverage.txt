@@ -14,11 +14,32 @@ All files          |     100 |      100 |     100 |     100 |
   ...ionSelect.tsx |     100 |      100 |     100 |     100 |                   
   ...alculation.ts |     100 |      100 |     100 |     100 |                   
   ...dateNumber.ts |     100 |      100 |     100 |     100 |                   
+ ...nts/atoms/Icon |     100 |      100 |     100 |     100 |                   
+  Icon.tsx         |     100 |      100 |     100 |     100 |                   
+ ...ents/atoms/Key |     100 |      100 |     100 |     100 |                   
+  Key.tsx          |     100 |      100 |     100 |     100 |                   
+ .../atoms/Spinner |     100 |      100 |     100 |     100 |                   
+  Spinner.tsx      |     100 |      100 |     100 |     100 |                   
+ ...toms/StatusDot |     100 |      100 |     100 |     100 |                   
+  StatusDot.tsx    |     100 |      100 |     100 |     100 |                   
+ ...VisuallyHidden |     100 |      100 |     100 |     100 |                   
+  ...llyHidden.tsx |     100 |      100 |     100 |     100 |                   
+ ...s/DisplayValue |     100 |      100 |     100 |     100 |                   
+  DisplayValue.tsx |     100 |      100 |     100 |     100 |                   
+  formatDisplay.ts |     100 |      100 |     100 |     100 |                   
+ ...es/ErrorNotice |     100 |      100 |     100 |     100 |                   
+  ErrorNotice.tsx  |     100 |      100 |     100 |     100 |                   
+ ...ExpressionLine |     100 |      100 |     100 |     100 |                   
+  ...ssionLine.tsx |     100 |      100 |     100 |     100 |                   
+ ...es/HistoryItem |     100 |      100 |     100 |     100 |                   
+  HistoryItem.tsx  |     100 |      100 |     100 |     100 |                   
+ ...les/StatusPill |     100 |      100 |     100 |     100 |                   
+  StatusPill.tsx   |     100 |      100 |     100 |     100 |                   
 -------------------|---------|----------|---------|---------|-------------------
 
 =============================== Coverage summary ===============================
-Statements   : 100% ( 75/75 )
-Branches     : 100% ( 49/49 )
-Functions    : 100% ( 19/19 )
-Lines        : 100% ( 74/74 )
+Statements   : 100% ( 132/132 )
+Branches     : 100% ( 109/109 )
+Functions    : 100% ( 41/41 )
+Lines        : 100% ( 129/129 )
 ================================================================================

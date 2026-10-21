@@ -310,10 +310,10 @@ This writes `backend/coverage.txt` (`go tool cover -func` output) and `frontend/
 
 | Package | Coverage | Note |
 |---|---|---|
-| `backend/internal/calculator` | 97.1% | The only uncovered branch is an unreachable fallback in `Round`. |
-| `backend/internal/httpapi` | 100% | Includes the rate limiter (with a fake clock), request IDs, the access log and the OpenAPI contract test. |
+| `backend/internal/calculator` | 97.6% | The only uncovered branch is an unreachable fallback in `Round`. Percent cases include intermediate overflow, subnormal operands and a genuine overflow. |
+| `backend/internal/httpapi` | 100% | Includes operand range checks (`1e-999`, `1e999`), the rate limiter with a fake clock (slow-rate eviction, the client cap, concurrent saturation under `-race`), request IDs, the access log and the OpenAPI enum contract. |
 | `backend/cmd/healthcheck` | 57.1% | `check` is fully tested; `main` is not. |
-| `backend/cmd/server` | 48.7% | The security headers middleware, the static handler (including traversal attempts, missing assets and directory requests), the logger and the environment parsing are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the Docker verification exercise it. |
+| `backend/cmd/server` | 50.5% | The security headers middleware, the static handler through `os.Root` (traversal, symlinks out of the directory, missing assets, directory requests), the logger and the environment parsing, including `NaN` and `Inf`, are tested. `run` (startup and graceful shutdown) is not; the end-to-end suite and the container smoke test exercise it. |
 | `frontend/src` | 100% | Statements, branches, functions and lines. |
 
 ### End-to-end
