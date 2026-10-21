@@ -5,7 +5,7 @@
   gap: var(--space-5);
   width: 100%;
   box-sizing: border-box;
-  padding: var(--space-5) var(--space-4) var(--space-7);
+  padding: var(--space-5) var(--space-4);
 }
 
 .calculator {
@@ -27,9 +27,9 @@
 .layout[data-history-open='true'] .backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: var(--z-scrim);
   display: block;
-  background: rgb(0 0 0 / 35%);
+  background: var(--color-scrim);
 }
 
 .layout[data-history-open='true'] .history {
@@ -37,7 +37,7 @@
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 2;
+  z-index: var(--z-sheet);
   display: block;
   max-height: 70vh;
   overflow-y: auto;

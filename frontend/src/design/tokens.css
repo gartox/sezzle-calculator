@@ -41,6 +41,7 @@
 
   --shadow-card: 0 1px 2px rgb(29 31 36 / 6%), 0 8px 24px rgb(29 31 36 / 8%);
   --shadow-key: 0 1px 0 rgb(29 31 36 / 10%);
+  --color-scrim: rgb(29 31 36 / 40%);
 }
 
 [data-theme='dark'] {
@@ -75,6 +76,7 @@
 
   --shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 35%);
   --shadow-key: 0 1px 0 rgb(0 0 0 / 35%);
+  --color-scrim: rgb(0 0 0 / 60%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -89,6 +91,7 @@
     --color-key-digit: #2a2d33;
     --color-key-function: #33363d;
     --color-key-utility: #3d4048;
+    --color-key-text: var(--color-text);
     --color-key-inactive: #222429;
     --color-on-key-inactive: #8a8d96;
     --color-accent: #8b93ff;
@@ -101,6 +104,7 @@
     --color-focus: #a5abff;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 12px 32px rgb(0 0 0 / 35%);
     --shadow-key: 0 1px 0 rgb(0 0 0 / 35%);
+    --color-scrim: rgb(0 0 0 / 60%);
   }
 }
 
@@ -122,6 +126,7 @@
 
   /* Typography: the system stack, tabular figures for numbers */
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-numeric-variant: tabular-nums;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
@@ -140,7 +145,12 @@
 
   /* Sizes */
   --size-key-min: 56px;
+  --size-target-min: 44px;
   --size-focus-ring: 3px;
+
+  /* Layers: the phone history sheet and the scrim behind it */
+  --z-scrim: 10;
+  --z-sheet: 11;
 
   /* Motion */
   --motion-duration-fast: 80ms;
