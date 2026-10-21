@@ -614,6 +614,39 @@ make lint, make format-check, make test, make e2e, the Storybook tests, the shel
 
 Result: phase A changes first. The accent is indigo, `#4338CA` in light and `#8B93FF` in dark. Equals with nothing to calculate now uses its own inactive tokens, a muted glyph on a quiet surface. The error Ref shows 8 characters and copies the full ID. Values use the real minus sign and `× 10` exponents. Phase B then followed prompt 11. The keypad is a pure reducer in `src/calculator/keypad.ts` with 93 table-driven tests. On top of it sit the four organisms, the template (history beside the calculator from 900 px, a sheet on phones) and the page, which takes the API client, health check, storage and clipboard as props. The old form and its tests are gone. Two accessibility rules shaped the names: axe matches visible text word by word, so the power key is "xy, power" and the Ref is "Ref 3f9c2a7d, full ID ..., copy". The components use groups rather than landmarks, because stories render every component twice. The README screenshot showed a Close button on the history panel at 1024 px, where there is nothing to close; it is now hidden from 900 px. The Playwright UI tests were rewritten around accessible names, six of them, and the API and contract tests are unchanged. `make screenshot` writes `docs/screenshot.png` and is opt-in, and the `docs/design` screenshots were regenerated. Counts: backend 60 tests (257 with subtests), frontend unit 282, Storybook 93 in Chromium with axe in both themes, end-to-end 33, shell checks 165. Frontend coverage is 100% on every measure; backend coverage is unchanged. One gap is open: CI does not run the Storybook tests yet; they run locally with `make storybook-test`. Verified locally and from a clean clone on Node 24.21.0 and Go 1.26.10, including the Docker build, the smoke test and the four scans.
 
+## 16. Final polish: frontend review, browser findings and workflow-check nits
+
+Tool: Claude Code.
+
+```text
+Prompt 16: final polish before submission. An independent reviewer (acting as the CTO of a payments company, expert in React, accessibility and UX) reviewed the new frontend and requested changes, I tested the built app by hand in a browser, and the backend reviewer approved with three nits. I checked every item; they are real. Append this whole message verbatim to PROMPTS.md as prompt 16 and keep the author section last.
+
+Read these three reports in full first; they have exact file:line references, reproduction steps and suggested fixes:
+- /Users/ghost/Proyectos/nearfinder/docs/sezzle-reviews/frontend-review.md (27 findings)
+- /Users/ghost/Proyectos/nearfinder/docs/sezzle-reviews/browser-test.md (my findings A, B, C)
+- /Users/ghost/Proyectos/nearfinder/docs/sezzle-reviews/backend-review-4.md (the "New findings" section: 3 items)
+
+## Fix all of these
+
+Frontend MAJOR 1 to 4: keys dropped while a request is in flight (queue and replay them in order); Enter after a mouse click re-presses the focused key (use :focus-visible or equivalent so Enter and = calculate unless focus arrived by keyboard; replace the test that codified the bug); the phone history sheet must be a real modal dialog with focus moved in, inert background, keyboard input to the calculator paused while it is open, and focus restored to the toggle on every close path; requests time out (about 8 s) with a clear message, and AC cancels an in-flight request.
+
+My browser finding B: the physical keyboard must work right after page load without clicking, through a document-level listener that ignores editable targets and events with Ctrl, Meta or Alt. Extract the handling into a useKeyboardKeypad hook (frontend NIT 22) so it is unit-testable.
+
+Frontend MINOR 5 to 14 and my C: including the history storing the full chain ("2 + 3 × 4 = 20"). For MINOR 9, percent inside a chain: follow the common calculator convention, so that "200 + 10 %" turns 10 into 10 percent of 200 through the API and then continues ("200 + 20" giving 220), while "15 % 200 =" alone keeps meaning 15 percent of 200. Document both cases in the README and docs/design.md. For MINOR 14, run the Storybook tests in CI.
+
+Frontend NITs 15 to 27: do all of them, except that for NIT 20 a unit test that compares the two dark-theme blocks is enough instead of a build step.
+
+Backend nits 1 to 3 from backend-review-4.md: strip comments before the workflow checks, anchor them, require every other job in needs, require a literal concurrency group and cancel-in-progress false, add a fixture per bypass, and mention NAME_UNKNOWN in the README and the workflow comment.
+
+## Tests that must fail on the old behavior
+
+For each MAJOR and for A, B and C, add a test that fails before your fix: a Playwright test with page.route delaying the response 300 ms for the dropped keys; a Playwright test that clicks keys and then presses Enter; one that types right after page load; one for the sheet's focus at 375 px; one with a route that never answers for the timeout and AC. Prove each fails on the old code once, the same way as before, then keep it passing.
+
+## Verification and report
+
+make lint, make format-check, make test, make e2e, the Storybook tests, the shell tests, docker build and the container smoke test on Node 24.21.0 and Go 1.26.10, then the README from a clean clone. Regenerate docs/screenshot.png and the docs/design screenshots if anything visual changed. Small commits with clear English messages, no AI markers, no remote, no push. Report a table with each finding, its commit and the test that would fail on regression, then stop. The reviewer will check again afterwards.
+```
+
 ## What I did without AI
 
 To be written by the author.
