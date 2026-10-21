@@ -79,7 +79,12 @@ Open http://localhost:5173. The Vite dev server proxies every `/api` request to 
 
 ### Deploy
 
-CI publishes the image to GitHub Container Registry automatically on every push to `main`, once all the other jobs have passed, tagged `latest` and with the commit SHA.
+CI publishes the image to GitHub Container Registry on every push to `main`, once all the other jobs have passed. It publishes the exact image it built, smoke tested and scanned, not a rebuild. Each image gets two tags:
+
+- **The commit SHA, for example `ghcr.io/gartox/sezzle-calculator:3f9c2a7…`.** It is never overwritten; if it already exists, the publish step leaves it alone.
+- **`latest`.** It moves only when the commit is still the head of `main`, and publish runs one at a time, so an older run that finishes late cannot roll it back.
+
+Deployments should pin the digest, which the `publish` job prints in its summary, or the commit tag; `latest` is for trying the image out:
 
 ```bash
 docker pull ghcr.io/gartox/sezzle-calculator:latest
@@ -89,7 +94,7 @@ docker pull ghcr.io/gartox/sezzle-calculator:latest
 docker run --rm -p 8080:8080 ghcr.io/gartox/sezzle-calculator:latest
 ```
 
-Open http://localhost:8080. To pin a build, replace `latest` with the commit SHA shown in the `publish` job.
+Open http://localhost:8080. For a deployment, use `ghcr.io/gartox/sezzle-calculator@sha256:<digest>` instead of `:latest`.
 
 ## Project layout
 
@@ -163,7 +168,7 @@ GET /api/v1/health  ->  200 {"status":"ok"}
 
 ### Rate limiting
 
-`POST /api/v1/calculate` is limited per client IP with a token bucket: by default each client may send 20 requests at once and 10 per second after that. Over the limit the API answers `429 RATE_LIMITED` with `Retry-After`. The health check, the OpenAPI document and the static UI are not limited. Buckets idle for three minutes are dropped by a sweep that runs every minute, so memory is bounded by recently active clients.
+`POST /api/v1/calculate` is limited per client IP with a token bucket: by default each client may send 20 requests at once and 10 per second after that. Over the limit the API answers `429 RATE_LIMITED` with `Retry-After`. The health check, the OpenAPI document and the static UI are not limited. A sweep every minute drops buckets that have been idle long enough to refill completely, at least three minutes and longer at slow rates (`burst / rps`). Dropping a bucket therefore never hands a client back requests it had not earned. Memory is also capped: at most `RATE_LIMIT_MAX_CLIENTS` clients (10,000 by default) are tracked. When the table is full, a new client evicts the least recently seen one. The alternative, refusing new clients with `429` while full, would let anyone who fills the table with rotating addresses lock out every new legitimate client. The sweep walks from the least recently seen end and stops at the first recent bucket, so it never scans clients it keeps.
 
 The client IP is the TCP peer address. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`, because any client can set that header and would otherwise choose its own IP and bypass the limit. Turn it on only behind a reverse proxy that overwrites the header. The limit is per server instance; several replicas would each keep their own buckets.
 
@@ -185,8 +190,9 @@ The server reads these environment variables:
 |---|---|---|
 | `PORT` | `8080` | Port to listen on. |
 | `STATIC_DIR` | `frontend/dist` | Built frontend to serve; when the directory is missing only the API is served. The Docker image sets `/app/frontend/dist`. |
-| `RATE_LIMIT_RPS` | `10` | Calculations per second per client IP. `0` disables rate limiting. |
+| `RATE_LIMIT_RPS` | `10` | Calculations per second per client IP. `0` disables rate limiting. Must be a finite number; `NaN` and `Inf` are refused at startup. |
 | `RATE_LIMIT_BURST` | `20` | Requests a client may send at once before the per-second rate applies. Must be at least 1. |
+| `RATE_LIMIT_MAX_CLIENTS` | `10000` | Most clients tracked at once; the least recently seen is forgotten when full. Must be at least 1. |
 | `TRUST_PROXY` | unset | `true` takes the client IP from the first `X-Forwarded-For` address. Leave unset unless a proxy sets that header. |
 | `LOG_FORMAT` | text | `json` switches all logs to JSON lines. |
 
@@ -332,7 +338,16 @@ Playwright starts the stack itself on port 8090, rebuilding the frontend bundle 
 
 ### CI
 
-The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with six jobs: `backend` (gofmt check, `go vet`, tests with the race detector), `frontend` (`npm ci`, a check that the generated API types match the OpenAPI document, typecheck, lint, format check, tests, build, as a matrix on Node 24 and 26), `docker` (the image builds without being pushed), `e2e` (lint, format check and Playwright on Chromium with Node 24, with the HTML report uploaded as an artifact on failure), `security` (the scans described under [Security](#security)) and `publish` (pushes to `main` only, after the others pass; see [Deploy](#deploy)).
+The workflow in `.github/workflows/ci.yml` runs on every push and pull request to `main` with six jobs:
+
+- **`backend`.** gofmt check, `go vet`, and tests with the race detector.
+- **`frontend`.** A matrix on Node 24 and 26: `npm ci`, a check that the generated API types match the OpenAPI document, typecheck, lint, format check, tests and build.
+- **`e2e`.** Lint, format check and Playwright on Chromium with Node 24, including the contract suite; the HTML report is uploaded on failure.
+- **`security`.** `npm audit` in `frontend/` and `e2e/`, and `govulncheck` from `tools/go.mod`.
+- **`image`.** Builds the image once, starts it and runs `scripts/smoke-test.sh`: health becomes healthy, a calculation returns `30`, and an error returns the full envelope. It then scans that same image with Trivy and hands it on as an artifact with its image ID.
+- **`publish`.** Pushes to `main` only, after the others pass. It loads that artifact, checks the image ID and pushes those exact bytes; see [Deploy](#deploy).
+
+Every action is pinned to a full commit SHA with its version in a comment. `make smoke` and `make vulncheck` run the same checks locally.
 
 ## Code style
 
@@ -383,7 +398,7 @@ What the service covers:
 - **Response headers.** Every response, including errors and assets, carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: camera=(), microphone=(), geolocation=()` and a Content-Security-Policy restricted to this origin (`default-src`, `script-src`, `style-src`, `connect-src`, `img-src` plus `data:`, `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`). The Vite build emits no inline scripts or styles, so nothing needs `'unsafe-inline'`. `index.html` and the API are `Cache-Control: no-cache`; the hashed files under `/assets/` are `public, max-age=31536000, immutable`.
 - **Container.** The runtime image is `gcr.io/distroless/static-debian12:nonroot`: a static binary, no shell, no package manager, running as `nonroot`. The health check is a Go binary for that reason.
 - **Secrets.** None are needed and none are tracked; there are no environment files in the repository.
-- **Supply chain.** The `security` CI job fails on high or critical findings from `npm audit` in `frontend/` and `e2e/`, from `govulncheck` on the backend, and from Trivy on the built image (`HIGH,CRITICAL`, unfixed findings ignored). Dependabot opens weekly pull requests for npm, Go, Docker and GitHub Actions, with minor and patch bumps grouped. `backend/go.mod` pins Go 1.26.10 because `govulncheck` reported standard library issues in `net/http` and `crypto/tls` for 1.26.5 that were fixed in 1.26.9; with 1.26.10 it reports none, and at the time of writing `npm audit` and Trivy report zero findings.
+- **Supply chain.** CI fails on high or critical findings from `npm audit` in `frontend/` and `e2e/`, from `govulncheck` on the backend, and from Trivy on the image it publishes (`HIGH,CRITICAL`, unfixed findings ignored). What runs is pinned: actions by commit SHA, `govulncheck` by version in a separate `tools/go.mod` (so the backend module stays dependency-free), and the Dockerfile's base images by digest. Dependabot opens weekly pull requests for all of them, plus npm and Go modules, with minor and patch bumps grouped. `backend/go.mod` pins Go 1.26.10 because `govulncheck` reported standard library issues in `net/http` and `crypto/tls` for 1.26.5 that were fixed in 1.26.9; with 1.26.10 it reports none, and at the time of writing `npm audit` and Trivy report zero findings.
 
 Deliberately out of scope, because they belong to the deployment in front of the service rather than to a calculator:
 
