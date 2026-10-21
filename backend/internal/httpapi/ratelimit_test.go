@@ -340,3 +340,54 @@ func mustLimiter(t *testing.T, cfg RateLimitConfig, now func() time.Time) *RateL
 	}
 	return l
 }
+
+func TestRateLimitSlowRateIsNotResetEarly(t *testing.T) {
+	// One request every 100 s with a burst of 5: a full refill takes 500 s,
+	// longer than idleTTL. Evicting after idleTTL would hand back 5 requests.
+	clock := newFakeClock()
+	l := mustLimiter(t, RateLimitConfig{RPS: 0.01, Burst: 5}, clock.Now)
+	h := NewHandler(l)
+	const ip = "198.51.100.40:1"
+	for range 5 {
+		post(t, h, ip, "")
+	}
+	if rec := post(t, h, ip, ""); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("bucket should be empty, got %d", rec.Code)
+	}
+
+	clock.Advance(idleTTL + time.Second) // 181 s: 1.81 tokens back, not 5
+	l.sweep()
+	if _, kept := l.buckets[ip[:len(ip)-2]]; !kept {
+		t.Fatal("a depleted slow bucket was evicted before it refilled")
+	}
+	if rec := post(t, h, ip, ""); rec.Code != http.StatusOK {
+		t.Fatalf("one token has refilled, got %d", rec.Code)
+	}
+	if rec := post(t, h, ip, ""); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("only one token had refilled; a second request must be limited, got %d", rec.Code)
+	}
+
+	clock.Advance(500 * time.Second) // now full: eviction is harmless
+	l.sweep()
+	if _, kept := l.buckets[ip[:len(ip)-2]]; kept {
+		t.Fatal("a bucket idle for its full refill time should be evicted")
+	}
+}
+
+func TestIdleAfterFor(t *testing.T) {
+	tests := []struct {
+		rps, burst float64
+		want       time.Duration
+	}{
+		{rps: 10, burst: 20, want: idleTTL},
+		{rps: 0.01, burst: 5, want: 500 * time.Second},
+		{rps: 1, burst: 180, want: idleTTL},
+		{rps: 1, burst: 181, want: 181 * time.Second},
+		{rps: 1e-300, burst: 1, want: time.Duration(math.MaxInt64)},
+	}
+	for _, tt := range tests {
+		if got := idleAfterFor(tt.rps, tt.burst); got != tt.want {
+			t.Errorf("idleAfterFor(%v, %v) = %v, want %v", tt.rps, tt.burst, got, tt.want)
+		}
+	}
+}

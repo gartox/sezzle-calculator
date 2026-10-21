@@ -16,11 +16,24 @@ import (
 const (
 	// sweepInterval is how often idle buckets are looked for.
 	sweepInterval = time.Minute
-	// idleTTL is how long a client may stay silent before its bucket is
-	// dropped. A dropped bucket comes back full, which is what it would have
-	// refilled to anyway at any sensible rate.
+	// idleTTL is the shortest time a client must stay silent before its
+	// bucket can be dropped. At slow rates the limiter waits longer; see
+	// idleAfterFor.
 	idleTTL = 3 * time.Minute
 )
+
+// idleAfterFor is how long a bucket must be idle before eviction is safe. A
+// dropped bucket comes back full, so it may only be dropped once it would
+// have refilled to full anyway: after burst/rps seconds, and never sooner
+// than idleTTL. Rates so slow that the refill time overflows a Duration are
+// never evicted by idleness.
+func idleAfterFor(rps, burst float64) time.Duration {
+	refill := burst / rps * float64(time.Second)
+	if refill >= math.MaxInt64 {
+		return time.Duration(math.MaxInt64)
+	}
+	return max(idleTTL, time.Duration(refill))
+}
 
 // RateLimiter limits requests per client IP with a token bucket: each client
 // may send up to burst requests at once, refilled at rps tokens per second.
@@ -29,6 +42,7 @@ type RateLimiter struct {
 	rps        float64
 	burst      float64
 	trustProxy bool
+	idleAfter  time.Duration
 	now        func() time.Time
 
 	mu      sync.Mutex
@@ -97,6 +111,7 @@ func newRateLimiter(cfg RateLimitConfig, now func() time.Time) (*RateLimiter, er
 		rps:        cfg.RPS,
 		burst:      float64(cfg.Burst),
 		trustProxy: cfg.TrustProxy,
+		idleAfter:  idleAfterFor(cfg.RPS, float64(cfg.Burst)),
 		now:        now,
 		buckets:    make(map[string]*bucket),
 		stop:       make(chan struct{}),
@@ -174,14 +189,14 @@ func (l *RateLimiter) run(tick <-chan time.Time) {
 	}
 }
 
-// sweep drops buckets that have been idle longer than idleTTL, so memory is
-// bounded by the number of clients seen in the last few minutes.
+// sweep drops buckets idle for at least idleAfter, which by then have
+// refilled to full, so dropping them changes nothing for their clients.
 func (l *RateLimiter) sweep() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	cutoff := l.now().Add(-idleTTL)
+	now := l.now()
 	for key, b := range l.buckets {
-		if b.last.Before(cutoff) {
+		if now.Sub(b.last) >= l.idleAfter {
 			delete(l.buckets, key)
 		}
 	}
