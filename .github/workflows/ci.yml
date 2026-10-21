@@ -123,6 +123,20 @@ jobs:
         working-directory: tools
         run: go tool govulncheck -C ../backend ./...
 
+  # The repository's own guards: the publish script against a fake docker,
+  # the supply-chain pin check and its fixtures, and the Makefile gofmt guard.
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+      - name: Check that actions, base images and tools are pinned
+        run: scripts/check-supply-chain.sh .
+      - name: Test the scripts
+        run: make scripts-test
+
   # Builds the image once; everything after this point uses these exact bytes.
   # The container is started and smoke tested, then scanned, then handed to
   # publish as an artifact together with its image ID.
