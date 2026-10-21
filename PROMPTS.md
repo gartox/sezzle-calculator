@@ -585,6 +585,33 @@ Verification: make lint, make format-check, make test, the shell tests, shellche
 
 Result: the three items are fixed. `scripts/publish.sh` now asks GHCR's OCI distribution API whether the commit tag exists, through curl, using a pull token obtained with `GITHUB_TOKEN`. The formats came from real requests against GHCR: a 200 with `docker-content-digest`, and a 404 with `{"errors":[{"code":"MANIFEST_UNKNOWN"}]}`. Only that 404 allows a push, and anything else fails. Credentials and the bearer token reach curl through `--config -` on stdin and are masked in Actions. Every command substitution is a separately checked assignment, and the digest always comes from the registry header. `publish_test.sh` grew to 121 checks: the fake curl serves the token endpoint and the manifest API, and rejects wrong credentials. Breaking the script in a scratch copy showed one gap: swallowing curl's exit status went unnoticed, because a truncated status still failed closed. A fixture that returns complete headers, a valid digest and `200`, then exits 18, now catches it. `scripts/check-workflow.sh` guards the publish job's invariants with 19 fixture cases, and found that nothing verified publish downloads the same artifact the image job uploads; it checks that now. I raised one open question: before the GHCR repository exists, the first lookup may answer `NAME_UNKNOWN` rather than `MANIFEST_UNKNOWN`, which the rule rejected, so the very first publication would fail closed. The answer was to treat a 404 whose only code is `NAME_UNKNOWN` as proof of absence, because in the OCI distribution spec it means the repository does not exist, so the tag cannot either. It is accepted only after a pull token was obtained successfully. A mixed 404 and a 404 with any other code (now including `BLOB_UNKNOWN`) still fail closed. `publish_test.sh` gained a first-publication case (token OK, 404 NAME_UNKNOWN, image pushed and promoted) and a case where a failed token request stops the run before any lookup: 129 checks, under sh and dash, shellcheck clean. Verified locally and from a clean clone on Node 24.21.0 and Go 1.26.10.
 
+## 15. Product UI phase B: the keypad calculator
+
+Tool: Claude Code.
+
+```text
+Prompt 15: go-ahead for UI phase B of prompt 11. The submission deadline is the end of today, so work through it without stopping for review. Append this whole message verbatim to PROMPTS.md as prompt 15 and keep the author section last.
+
+## Changes to phase A first
+
+1. Accent color: replace the teal accent with our own calm indigo in both themes (for example around #4338CA in light and a lighter indigo around #8B93FF in dark; pick exact values that pass the contrast checks on the Foundations page). Keep everything else in the palette. Update the token docs and re-run the a11y story tests.
+2. ErrorNotice: show only the first 8 characters of the request ID ("Ref 3f9c2a7d"); clicking or pressing Enter on it copies the full ID, with a polite "Copied" announcement. Keep the full ID in the accessible name.
+3. DisplayValue typography: use the real minus sign U+2212 for negative numbers, and format numbers that need exponent notation as mantissa × 10 with superscript exponent (1.23456789012 × 10¹⁷) instead of e+17. Display only; the value the keypad sends to the API stays a plain number.
+4. Inactive equals in dark mode reads as active: make the inactive state clearly unavailable (low-contrast surface and glyph, no accent fill), while still meeting the contrast rule for disabled controls being distinguishable.
+
+## Phase B, as specified in prompt 11
+
+Build the organisms (CalculatorHeader, Display, Keypad with keyboard highlight, HistoryPanel), the CalculatorTemplate (history beside the calculator at 900 px and wider, a sheet on phones), the CalculatorPage with the pure keypad reducer in src/calculator/keypad.ts and the API client and health check injected as props, and switch the app to it. Remove the old form components. All behavior rules from prompt 11 apply: left-to-right chaining (2 + 3 × 4 = 20 with the intermediate 5 shown), "15 % of 200", sqrt unary, equals inactive without a complete expression, busy state after 300 ms, errors recoverable with the expression kept, full keyboard parity with on-screen press feedback, copy on the value, history of 10 in sessionStorage with try/catch.
+
+Tests: table-driven reducer tests for every rule; component tests with fake client and health; Storybook stories with play functions for organisms and the page (typing a calculation, chaining, an error, keyboard only), all passing a11y in both themes; Playwright UI tests rewritten to drive the keypad by accessible names, including one keyboard-only test, division by zero, chaining and history reuse; API tests unchanged. Keep frontend coverage at 100% or explain each uncovered line.
+
+Docs: docs/screenshot.png captured by Playwright at 1024 px after 15 % 200 =, shown at the top of the README; update the README UI section, keyboard shortcuts, the left-to-right note, the Storybook section, the scope section (the design system and Storybook are extras, chosen deliberately), the coverage table and test counts. Regenerate the docs/design screenshots with the new accent.
+
+## Verification before you report
+
+make lint, make format-check, make test, make e2e, the Storybook tests, the shell tests, docker build and the container smoke test on Node 24.21.0 and Go 1.26.10, then the full README from a clean clone. Small commits with clear English messages, no AI markers, no remote, no push. Report the test counts per layer, coverage, the screenshot paths and the commit list, then stop.
+```
+
 ## What I did without AI
 
 To be written by the author.
