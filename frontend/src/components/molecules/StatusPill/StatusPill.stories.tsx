@@ -4,7 +4,6 @@ import StatusPill from './StatusPill'
 const meta = {
   title: 'Molecules/StatusPill',
   component: StatusPill,
-  parameters: { layout: 'padded' },
 } satisfies Meta<typeof StatusPill>
 
 export default meta

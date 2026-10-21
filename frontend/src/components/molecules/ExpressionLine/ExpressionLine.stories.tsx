@@ -4,7 +4,6 @@ import ExpressionLine from './ExpressionLine'
 const meta = {
   title: 'Molecules/ExpressionLine',
   component: ExpressionLine,
-  parameters: { layout: 'padded' },
   decorators: [
     (Story) => (
       <div style={{ maxWidth: 320, padding: 16, background: 'var(--color-surface-display)' }}>

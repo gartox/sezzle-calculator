@@ -4,7 +4,6 @@ import ErrorNotice from './ErrorNotice'
 const meta = {
   title: 'Molecules/ErrorNotice',
   component: ErrorNotice,
-  parameters: { layout: 'padded' },
   decorators: [
     (Story) => (
       <div style={{ maxWidth: 320, padding: 16, background: 'var(--color-surface-display)' }}>

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import VisuallyHidden from '../../atoms/VisuallyHidden/VisuallyHidden'
 import styles from './DisplayValue.module.css'
-import { formatDisplayValue, isNumeric } from './formatDisplay'
+import { displayWidth, formatDisplayValue, isNumeric } from './formatDisplay'
 
 type Feedback = 'copied' | 'failed' | null
 
@@ -56,7 +56,7 @@ function DisplayValue({
     }
   }
 
-  const style = { '--chars': Math.max(formatted.length, 1) } as CSSProperties
+  const style = { '--chars': displayWidth(formatted) } as CSSProperties
   const message = feedback ? FEEDBACK_TEXT[feedback] : ''
 
   return (

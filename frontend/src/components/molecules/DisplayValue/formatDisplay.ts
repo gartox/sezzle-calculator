@@ -33,3 +33,16 @@ export function formatDisplayValue(raw: string): string {
   const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   return `${negative ? '-' : ''}${grouped}${fraction === undefined ? '' : `.${fraction}`}`
 }
+
+/**
+ * The width of formatted text in digit widths, for shrink to fit. Tabular
+ * digits, letters and signs count as one; the thousands separator and the
+ * decimal point count as half.
+ */
+export function displayWidth(formatted: string): number {
+  let width = 0
+  for (const char of formatted) {
+    width += char === ',' || char === '.' ? 0.5 : 1
+  }
+  return Math.max(Math.round(width * 100) / 100, 1)
+}

@@ -4,7 +4,6 @@ import StatusDot from './StatusDot'
 const meta = {
   title: 'Atoms/StatusDot',
   component: StatusDot,
-  parameters: { layout: 'padded' },
 } satisfies Meta<typeof StatusDot>
 
 export default meta

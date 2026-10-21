@@ -1,17 +1,31 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import Icon from '../Icon/Icon'
-import Key from './Key'
+import Key, { type KeyProps } from './Key'
 
 const meta = {
   title: 'Atoms/Key',
   component: Key,
-  parameters: { layout: 'padded' },
   args: { onPress: fn() },
 } satisfies Meta<typeof Key>
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+const GALLERY: Array<KeyProps & { caption: string }> = [
+  { caption: 'Digit', label: '7', name: '7', variant: 'digit' },
+  { caption: 'Function', label: '√x', name: 'square root of x', variant: 'function' },
+  { caption: 'Utility', label: 'AC', name: 'AC, all clear', variant: 'utility' },
+  { caption: 'Operator', label: '×', name: 'multiply', variant: 'operator', active: false },
+  { caption: 'Pressed', label: '8', name: '8', pressed: true },
+  { caption: 'Icon', label: <Icon name="backspace" />, name: 'backspace', variant: 'utility' },
+  { caption: 'Disabled', label: '9', name: '9', disabled: true },
+  { caption: 'Active operator', label: '÷', name: 'divide', variant: 'operator', active: true },
+  { caption: 'Wide', label: '0', name: '0', wide: true },
+  { caption: 'Equals, inactive', label: '=', name: 'equals', variant: 'equals', inactive: true },
+  { caption: 'Equals', label: '=', name: 'equals', variant: 'equals' },
+  { caption: 'Equals, busy', label: '=', name: 'equals', variant: 'equals', busy: true },
+]
 
 export const Digit: Story = { args: { label: '7', name: '7', variant: 'digit' } }
 
@@ -58,30 +72,40 @@ export const Wide: Story = {
   ),
 }
 
-/** Every variant and state side by side. */
+/** Every variant and state side by side, each with a caption. */
 export const AllVariants: Story = {
   args: { label: '7', name: '7' },
   render: () => (
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(56px, 72px))',
-        gap: 8,
-        alignItems: 'center',
+        gridTemplateColumns: 'repeat(4, minmax(64px, 88px))',
+        gap: 12,
+        alignItems: 'start',
       }}
     >
-      <Key label="7" name="7" variant="digit" />
-      <Key label="√x" name="square root of x" variant="function" />
-      <Key label="AC" name="AC, all clear" variant="utility" />
-      <Key label="×" name="multiply" variant="operator" active={false} />
-      <Key label="8" name="8" pressed />
-      <Key label={<Icon name="backspace" />} name="backspace" variant="utility" />
-      <Key label="9" name="9" disabled />
-      <Key label="÷" name="divide" variant="operator" active />
-      <Key label="0" name="0" wide />
-      <Key label="=" name="equals" variant="equals" inactive />
-      <Key label="=" name="equals" variant="equals" />
-      <Key label="=" name="equals" variant="equals" busy />
+      {GALLERY.map(({ caption, ...props }) => (
+        <figure
+          key={caption}
+          style={{
+            display: 'grid',
+            gap: 6,
+            margin: 0,
+            gridColumn: props.wide ? 'span 2' : undefined,
+          }}
+        >
+          <Key {...props} wide={false} style={{ width: '100%' }} />
+          <figcaption
+            style={{
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--font-size-xs)',
+              textAlign: 'center',
+            }}
+          >
+            {caption}
+          </figcaption>
+        </figure>
+      ))}
     </div>
   ),
 }

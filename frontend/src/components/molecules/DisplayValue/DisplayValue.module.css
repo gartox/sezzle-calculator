@@ -8,9 +8,10 @@
 }
 
 /*
- * Shrink to fit without measuring: --chars is the formatted length, and a
- * tabular digit is about 0.6em wide, so 100cqi / chars / 0.6 is the largest
- * size that fits. Short values stop at the display-xl size.
+ * Shrink to fit without measuring: --chars is the width of the formatted
+ * value in digit widths (separators count as half), and a tabular digit is
+ * about 0.6em wide; dividing by 0.65 instead leaves a margin for wider system
+ * fonts. Short values stop at the display-xl size.
  */
 .value {
   display: block;
@@ -22,7 +23,7 @@
   background: none;
   color: var(--color-text);
   font-family: var(--font-sans);
-  font-size: min(var(--font-size-display-xl), calc(100cqi / var(--chars) * 1.6));
+  font-size: min(var(--font-size-display-xl), calc(100cqi / var(--chars) * 1.55));
   font-weight: var(--font-weight-regular);
   font-variant-numeric: var(--font-numeric-variant);
   line-height: var(--line-height-tight);

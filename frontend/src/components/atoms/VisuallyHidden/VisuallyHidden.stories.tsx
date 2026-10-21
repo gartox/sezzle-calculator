@@ -4,7 +4,6 @@ import VisuallyHidden from './VisuallyHidden'
 const meta = {
   title: 'Atoms/VisuallyHidden',
   component: VisuallyHidden,
-  parameters: { layout: 'padded' },
   args: { children: 'Read by screen readers only' },
 } satisfies Meta<typeof VisuallyHidden>
 

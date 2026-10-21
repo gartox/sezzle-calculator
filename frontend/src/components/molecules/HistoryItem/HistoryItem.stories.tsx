@@ -5,7 +5,6 @@ import HistoryItem from './HistoryItem'
 const meta = {
   title: 'Molecules/HistoryItem',
   component: HistoryItem,
-  parameters: { layout: 'padded' },
   args: { onSelect: fn() },
   decorators: [
     (Story) => (

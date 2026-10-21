@@ -4,7 +4,6 @@ import Icon from './Icon'
 const meta = {
   title: 'Atoms/Icon',
   component: Icon,
-  parameters: { layout: 'padded' },
 } satisfies Meta<typeof Icon>
 
 export default meta

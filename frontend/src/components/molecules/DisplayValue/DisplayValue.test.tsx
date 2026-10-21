@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DisplayValue from './DisplayValue'
@@ -9,11 +9,11 @@ afterEach(() => {
 })
 
 describe('DisplayValue', () => {
-  it('shows the grouped value and sizes it by its formatted length', () => {
+  it('shows the grouped value and sizes it by its width in digits', () => {
     render(<DisplayValue value="1234567.5" />)
     const value = screen.getByRole('button', { name: '1,234,567.5, copy' })
     expect(value).toHaveTextContent('1,234,567.5')
-    expect(value.style.getPropertyValue('--chars')).toBe('11')
+    expect(value.style.getPropertyValue('--chars')).toBe('9.5')
   })
 
   it('copies the raw value, confirms it and announces it politely', async () => {
@@ -28,17 +28,28 @@ describe('DisplayValue', () => {
   })
 
   it('hides the confirmation after the feedback time', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    // Only the component's timer is faked and advanced by hand, so real time
+    // on a busy machine cannot expire the confirmation before the assertion.
+    // The click is dispatched directly: user-event's own delays would wait on
+    // the faked clock.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     render(<DisplayValue value="7" writeClipboard={async () => {}} feedbackMs={500} />)
-
-    await user.click(screen.getByRole('button', { name: '7, copy' }))
-    expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('Copied')
+    const live = () => document.querySelector('[aria-live="polite"]')
 
     await act(async () => {
-      vi.advanceTimersByTime(600)
+      fireEvent.click(screen.getByRole('button', { name: '7, copy' }))
     })
-    expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('')
+    expect(live()).toHaveTextContent('Copied')
+
+    await act(async () => {
+      vi.advanceTimersByTime(499)
+    })
+    expect(live()).toHaveTextContent('Copied')
+
+    await act(async () => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(live()).toHaveTextContent('')
   })
 
   it('says so when the clipboard refuses', async () => {

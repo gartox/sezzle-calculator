@@ -5,7 +5,6 @@ import DisplayValue from './DisplayValue'
 const meta = {
   title: 'Molecules/DisplayValue',
   component: DisplayValue,
-  parameters: { layout: 'padded' },
   args: { writeClipboard: fn(async () => {}) },
   decorators: [
     (Story) => (

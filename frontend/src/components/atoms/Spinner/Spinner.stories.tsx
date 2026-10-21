@@ -4,7 +4,6 @@ import Spinner from './Spinner'
 const meta = {
   title: 'Atoms/Spinner',
   component: Spinner,
-  parameters: { layout: 'padded' },
 } satisfies Meta<typeof Spinner>
 
 export default meta

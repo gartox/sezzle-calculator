@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDisplayValue, isNumeric } from './formatDisplay'
+import { displayWidth, formatDisplayValue, isNumeric } from './formatDisplay'
 
 describe('formatDisplayValue', () => {
   it.each([
@@ -39,5 +39,17 @@ describe('isNumeric', () => {
     ['1,000', false],
   ])('%s → %s', (raw, expected) => {
     expect(isNumeric(raw)).toBe(expected)
+  })
+})
+
+describe('displayWidth', () => {
+  it.each([
+    ['', 1],
+    ['7', 1],
+    ['1,234', 4.5],
+    ['1,234,567.89', 10.5],
+    ['Error', 5],
+  ])('%s → %s digit widths', (text, expected) => {
+    expect(displayWidth(text)).toBeCloseTo(expected)
   })
 })
