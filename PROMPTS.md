@@ -539,6 +539,34 @@ Small commits with clear English messages, one per finding where practical, no A
 
 Result: all eleven findings fixed, one commit per finding except the CI and supply chain work, which took four. Percent now falls back to reordered forms only when `a*b/100` is not finite, so `percent(100, 1e308)` is `1e308` while `200% of 1e308` still overflows. Operands are decoded as `json.Number`, and a literal that would overflow or round to zero is `INVALID_OPERAND`, so `1 / 1e-999` no longer looks like a division by zero. The rate limiter takes a validated config that refuses NaN and infinities at startup and in the constructor. It evicts only buckets idle for `max(3 min, burst/rps)`, and caps tracked clients at 10,000 by default, evicting the least recently seen rather than refusing new clients. Static files go through `os.Root`; a test with symlinks to a file and a directory outside `STATIC_DIR` failed before the change and passes after it. The request schema is a `oneOf` of unary and binary requests. An Ajv contract suite in the e2e package validates requests and live responses against the served document; weakening the schema on purpose made it fail. CI builds the image once, smoke tests and scans it, and publishes that artifact after checking its image ID. The commit tag is never overwritten, and `latest` moves only from the head of `main`. Actions are pinned by commit SHA, govulncheck v1.9.0 by a separate tools module, and base images by digest, all kept current by Dependabot. The Makefile gofmt check now fails on a syntax error, proven on a scratch copy that was then deleted. Two slips were caught along the way: an assignment that would have hidden a nil pointer inside an error interface, and a `git checkout` that briefly reverted the uncommitted schema, restored from a backup before going on. Verified locally and again from a clean clone on Node 24.21.0 and Go 1.26.10: lint, format, race tests, 143 frontend unit tests at 100%, 30 e2e tests, 61 story tests, docker build, the container smoke test, and clean `npm audit`, govulncheck and Trivy.
 
+## 13. Second review: fail-closed publishing and regression tests for every guard
+
+Tool: Claude Code.
+
+```text
+Prompt 13. The reviewer re-reviewed prompt 12 and still requests changes. Seven findings are FIXED. Four are PARTIALLY FIXED because nothing would fail if someone reverted the fix, and there are four new findings. I checked them against the code; all are real. Append this whole message verbatim to PROMPTS.md as prompt 13 and keep the author section last. Do not start UI phase B and do not touch the design system.
+
+## New findings
+
+1. ci.yml publish, registry lookup fails open: any failure of docker manifest inspect (timeout, auth, 5xx) falls through to docker push, so a transient error on a rerun can overwrite a commit tag the README calls immutable. Proceed with the push only on a positively identified "manifest not found"; fail the job on any other error.
+2. ci.yml publish, promotion cannot recover: if the commit tag is pushed but the head check or the latest push fails, a rerun finds the commit tag, skips, and never promotes. Separate the two steps: publishing the commit tag is idempotent, and promotion always resolves the published digest, checks that this commit is still the head of main, and points latest at that digest.
+3. scripts/smoke-test.sh checks bodies but not status codes: assert exactly 200 for health, 200 for the calculation and 422 for the division by zero, alongside the body checks.
+4. The missing-asset cache test was lost: restore a test that runs the real stack, secureHeaders around the static handler built by mustStaticHandler, and asserts that a missing asset under /assets/ returns 404 without the immutable Cache-Control, that an existing hashed asset keeps it, and that an asset reached through an outside symlink is refused.
+
+## Close the partial findings with tests that would fail on regression
+
+5. Move the publish logic out of inline YAML into scripts/publish.sh, a POSIX shell script that takes the image, the commit and the registry as arguments and calls docker through a variable such as DOCKER=${DOCKER:-docker}. Add scripts/publish_test.sh that runs it against a fake docker (a small script on PATH that records calls and answers from fixtures) and covers: tag absent then pushed; tag already present then not pushed and promotion still attempted; lookup unauthorized or timing out then the script fails without pushing; commit no longer head of main then latest is not moved; promotion failed once then succeeds on a rerun. Run it in CI and from the Makefile.
+6. Add scripts/check-supply-chain.sh, run in CI and by make lint, that fails if any uses: in .github/workflows is not a 40-character SHA, if any FROM in the Dockerfile has no @sha256 digest, or if govulncheck or any go run or go install in the repo uses @latest. Add a test that feeds it a fixture with each violation and expects failure.
+7. Add a regression test for the Makefile gofmt guard: a script that copies a file with a syntax error into a temporary module, runs the same GOFMT_CHECK recipe against it, and expects failure; and does the same with an unformatted but valid file. Run it from make test or a dedicated target that CI calls.
+8. For publication ordering, the publish_test.sh case "commit no longer head of main" is the regression test; mention in the README that the concurrency group plus that check is what prevents an older run from moving latest.
+
+## Verification before you report
+
+make lint, make format-check, make test with -race, make e2e, the storybook tests, the new shell tests, the smoke test against a freshly built container, docker build, and the three scans, on Node 24.21.0 and Go 1.26.10, then again from a clean clone. Prove each new guard once by breaking it in a scratch copy and showing the failure, then discard the scratch copy. shellcheck the new scripts if it is available, through its Docker image if it is not installed.
+
+Small commits with clear English messages, no AI markers, no remote, no push. Report a table with finding number, commit and the test that would fail on regression, then stop. The reviewer reviews again after this.
+```
+
 ## What I did without AI
 
 To be written by the author.
