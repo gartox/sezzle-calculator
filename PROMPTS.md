@@ -492,6 +492,51 @@ Commit in small steps with clear English messages; no AI markers (the local hook
 
 Result (phase A only; phase B waits for the go-ahead): `docs/design.md` records the research, principles, layout and identity. The bottom row is `0 . ⌫ =` with zero at single width, the only option that keeps four equal columns with equals bottom right and backspace beside it. Storybook 10.6.3 runs with the docs, a11y and Vitest addons; a theme decorator renders every story in light and dark side by side, so axe (set to fail) checks both in one run. Tokens, a Foundations page with contrast ratios computed live from the resolved tokens, five atoms and five molecules came with 61 stories, all passing axe in Chromium, and 140 unit tests at 100% frontend coverage. 32 screenshots are in `docs/design/` (seven targets plus a real-pointer hover capture of the keys, at 375 and 1024 px in both themes). Findings along the way: axe flagged "AC" and "√x" under WCAG 2.5.3 (label in name), so their names became "AC, all clear" and "square root of x"; the history item's accessible name ran its parts together until explicit spaces were added; shrink to fit overflowed at 375 px until separators were weighted as half a digit; a fake-timer test raced with real time and was rewritten with a manual clock; and the jsdom smoke test used `import.meta.glob`, which Vitest's file-system module cache left stale, silently skipping new stories, so it now scans the directory at run time. The running app is unchanged: its sources are identical to `6b1b7fe`, and `make test` and `make e2e` (15 passed) still pass. Storybook tests are not yet in CI; that belongs with phase B.
 
+## 12. Backend and pipeline review fixes
+
+Tool: Claude Code.
+
+```text
+Prompt 12. Before phase B of the UI, the backend and the pipeline must be at 100%. An independent reviewer (Codex, acting as the CTO of a payments company) reviewed the backend and infrastructure and requested changes. I reproduced or confirmed every finding below against the code; all eleven are real. Fix all of them. Append this whole message verbatim to PROMPTS.md as prompt 12 and keep the author section last.
+
+Do not touch the design system work from prompt 11 phase A, except the generated API types and the API client if the OpenAPI change below requires it.
+
+## Correctness
+
+1. Percent overflows in the intermediate step (calculator.go, percent): percent(100, 1e308) returns RESULT_OVERFLOW although 1e308 is representable. Compute so that a representable result never overflows in between (for example try a*b/100 and fall back to (a/100)*b or a*(b/100) when the first is not finite, then round). Add table cases: intermediate overflow that should succeed, subnormal operands, and a genuine overflow that must still fail.
+2. Underflowing literals silently become zero (handler decode): {"operation":"divide","a":1,"b":1e-999} answers DIVISION_BY_ZERO, and 1e-999 + 0 answers 0, although the README promises out-of-range literals are rejected. Decode operands with json.Number or an equivalent that keeps the lexeme, and reject a nonzero literal that parses to zero or to infinity with INVALID_OPERAND and a clear message. Add positive and negative underflow tests, and make the README and the OpenAPI say exactly what happens.
+
+## Rate limiting
+
+3. RATE_LIMIT_RPS and RATE_LIMIT_BURST validation (cmd/server/main.go and the limiter constructor): NaN and ±Inf are accepted; NaN breaks refill after the first request, +Inf disables throttling. Reject non-finite values at startup with a clear error and validate the constructor inputs the same way. Test both.
+4. Eviction resets slow buckets early (ratelimit.go sweep): a depleted bucket is evicted after three minutes even when refilling takes longer, and the client gets a full burst back. Evict only buckets that would already be full, that is idle for at least max(idleTTL, burst/rps). Test a low-rate configuration with the injected clock.
+5. Unbounded bucket map: a client rotating addresses (IPv6) grows memory without limit, and the sweep scans the whole map under the request mutex. Add a maximum bucket count (configurable, sensible default such as 10,000) with a documented admission policy, for example evicting the least recently seen bucket or answering 429 for new clients when full; keep the sweep cheap. Test saturation and concurrent access under -race.
+
+## Static files
+
+6. Symlinks escape STATIC_DIR (cmd/server/main.go): http.Dir and os.Stat follow symlinks outside the directory, contrary to the README. Serve through os.Root (os.OpenRoot and root.FS(), Go 1.24+) so lookups are confined, keep the index.html fallback and the 404 for missing assets, and add a test with a symlink that points outside the directory.
+
+## Contract
+
+7. OpenAPI request schema (backend/internal/httpapi/openapi.yaml, CalculateRequest): it requires only operation and a, so it accepts {"operation":"add","a":1}, which the handler rejects. Model a unary request (sqrt) and a binary request (the other six) as oneOf branches with b required for binary. Regenerate the frontend types, adjust the client if the types change, and extend the contract test so it validates representative valid and invalid requests and responses against the schema itself, not only the enums. Standard library only on the Go side; if real schema validation needs a dependency, do that check in the frontend or e2e package with a small, justified dev dependency instead.
+
+## CI and supply chain
+
+8. Publish the artifact that was tested (ci.yml): today publish rebuilds the image separately from the one scanned, and no job starts the container. Build the image once, run it in CI with a smoke test (health becomes healthy, a calculation returns the expected result, an error returns the envelope), scan that same image with Trivy, and publish that exact image by digest.
+9. Pin what executes in CI: pin every action to a full commit SHA with the version in a trailing comment (resolve the SHAs with gh api, do not guess them), pin govulncheck to a specific version instead of @latest, and pin the Dockerfile base images by digest with the tag kept in a comment. Make sure Dependabot keeps all three kinds of pins up to date.
+10. Ordered publishing: add a concurrency group to the publish path so an older run cannot overwrite latest after a newer one, and publish an immutable commit tag next to latest. Document in the README that deployments should use the digest or the commit tag.
+
+## Tooling
+
+11. Makefile gofmt checks (lint and format-check): the recipe ignores the exit status of gofmt -l, so a syntax error with empty stdout passes. Fail when gofmt exits non-zero as well as when it lists files. Prove it once by introducing a syntax error in a scratch copy, then discard the copy.
+
+## Verification before you report
+
+Run make lint, make format-check, make test with -race, make e2e, the storybook tests from phase A, docker build, the container smoke test you added, and the three security scans, on Node 24.21.0 and Go 1.26.10, and then repeat everything from a clean clone. Show the curl output for: percent 100 of 1e308, divide 1 by 1e-999, the server refusing RATE_LIMIT_RPS=NaN, and a request rejected by the new OpenAPI schema check. Update the README where behavior changed and the coverage table.
+
+Small commits with clear English messages, one per finding where practical, no AI markers, no remote, no push. Report a table with each finding number, the commit that fixed it and the test that proves it, then stop. After this, the reviewer will review again before UI phase B starts.
+```
+
 ## What I did without AI
 
 To be written by the author.
