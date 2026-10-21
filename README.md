@@ -144,7 +144,7 @@ Every error has the same shape, `{"error": {"code": "...", "message": "...", "re
 |---|---|---|
 | `INVALID_JSON` | 400 | The body is not a JSON object, has a wrong type (for example `"a": "2"`), repeats a key, is empty, has data after the object, or exceeds 1 MiB. |
 | `INVALID_OPERATION` | 400 | `operation` is missing or not exactly one of the seven: names are lowercase and are not trimmed, so `ADD` and `" add "` are rejected. |
-| `INVALID_OPERAND` | 400 | `a` is missing, or `b` is missing for a two-operand operation. Also NaN or infinite operands, which JSON cannot carry but the calculator package rejects on its own. |
+| `INVALID_OPERAND` | 400 | `a` is missing, or `b` is missing for a two-operand operation; or an operand literal does not fit a 64-bit float: too large (`1e999`, which would become infinity) or nonzero and too small (`1e-999`, which would round to zero, so `1 / 1e-999` is this error rather than `DIVISION_BY_ZERO`). The calculator package also rejects NaN and infinite operands on its own, though JSON cannot carry them. |
 | `DIVISION_BY_ZERO` | 422 | `divide` with `b` equal to 0. |
 | `NEGATIVE_SQRT` | 422 | `sqrt` with `a` below 0. |
 | `RESULT_OVERFLOW` | 422 | The result is not a finite number: `1e308 * 10`, `0 ^ -1`, `(-8) ^ 0.5`. |
@@ -374,7 +374,7 @@ make format-check
 
 What the service covers:
 
-- **Input.** The body must be declared as `application/json`, otherwise `415`; this also keeps cross-site forms and `text/plain` requests, which browsers send without a CORS preflight, away from the API. The body is capped at 1 MiB with `http.MaxBytesReader`. Keys match exactly and a repeated key is rejected, so a proxy and this server can never read the same body differently. Malformed JSON, wrong types, trailing data and out-of-range literals are rejected with `INVALID_JSON`; unknown fields are ignored. The operation is an exact enum.
+- **Input.** The body must be declared as `application/json`, otherwise `415`; this also keeps cross-site forms and `text/plain` requests, which browsers send without a CORS preflight, away from the API. The body is capped at 1 MiB with `http.MaxBytesReader`. Keys match exactly and a repeated key is rejected, so a proxy and this server can never read the same body differently. Malformed JSON, wrong types and trailing data are rejected with `INVALID_JSON`. Operands are read as their exact JSON text, so a literal outside the range of a 64-bit float is rejected with `INVALID_OPERAND` instead of silently becoming infinity or zero; unknown fields are ignored. The operation is an exact enum.
 - **Server limits.** `ReadHeaderTimeout` 5 s, `ReadTimeout` 10 s, `WriteTimeout` 10 s, `IdleTimeout` 60 s, and a 10 s graceful drain on `SIGINT` and `SIGTERM`.
 - **Error responses.** Messages are fixed strings; nothing from the runtime (stack traces, paths, decoder errors) reaches the client. The only input echoed back is the operation name in `INVALID_OPERATION`, JSON-encoded.
 - **Static files.** Served only from `STATIC_DIR`. Paths are cleaned before lookup and any path still containing `..` after decoding is refused with `400`; there is a unit test that tries to read a file next to the directory. The `index.html` fallback never leaves the directory.
@@ -392,7 +392,7 @@ Deliberately out of scope, because they belong to the deployment in front of the
 
 ## Assumptions and limitations
 
-- Operands are JSON numbers. Strings, BigInt and numeric literals outside the `float64` range are rejected as `INVALID_JSON`.
+- Operands are JSON numbers. Strings and other types are `INVALID_JSON`. Number literals that a 64-bit float cannot hold are `INVALID_OPERAND`: `1e999` would overflow to infinity and `1e-999` would round to zero. Zero itself in any spelling (`0`, `-0`, `0e-999`) and subnormals down to `5e-324` are accepted.
 - Results that are infinite or not a number are reported as `RESULT_OVERFLOW` rather than returned.
 - Every result is rounded to 12 significant digits, including integers: `9007199254740993 + 0` returns `9007199254740000`. Results that underflow below the smallest double become `0`, and negative zero is returned as `0`.
 - Operation names and request keys are exact and lowercase. `ADD`, `" add "` and `"A"` are rejected rather than guessed at.

@@ -65,7 +65,7 @@ export interface components {
          * @enum {string}
          */
         Operation: "add" | "subtract" | "multiply" | "divide" | "power" | "sqrt" | "percent";
-        /** @description Operands must be JSON numbers. A missing `a`, or a missing `b` for a two-operand operation, is `INVALID_OPERAND`; a wrong type is `INVALID_JSON`. Keys and the operation name match exactly (lowercase, no surrounding spaces). A key that appears twice is `INVALID_JSON`. Unknown fields are ignored. */
+        /** @description Operands must be JSON numbers. A missing `a`, or a missing `b` for a two-operand operation, is `INVALID_OPERAND`; a wrong type is `INVALID_JSON`. A literal that a 64-bit float cannot hold is also `INVALID_OPERAND`: one too large (such as `1e999`, which would become infinity) or a nonzero one too small (such as `1e-999`, which would round to zero). `0e-999` and the smallest subnormal `5e-324` are accepted. Keys and the operation name match exactly (lowercase, no surrounding spaces). A key that appears twice is `INVALID_JSON`. Unknown fields are ignored. */
         CalculateRequest: {
             operation: components["schemas"]["Operation"];
             /** @description First operand. For `sqrt`, the number to take the root of. */

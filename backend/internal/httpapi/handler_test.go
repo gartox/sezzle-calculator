@@ -33,6 +33,11 @@ func TestCalculateSuccess(t *testing.T) {
 		{name: "percent", body: `{"operation":"percent","a":15,"b":200}`, want: 30},
 		{name: "float noise is rounded", body: `{"operation":"add","a":0.1,"b":0.2}`, want: 0.3},
 		{name: "zero operand is not missing", body: `{"operation":"multiply","a":0,"b":5}`, want: 0},
+		{name: "zero with a huge negative exponent is zero", body: `{"operation":"add","a":0e-999,"b":0.000e5}`, want: 0},
+		{name: "smallest subnormal is accepted", body: `{"operation":"add","a":5e-324,"b":0}`, want: 5e-324},
+		{name: "literal that rounds to the smallest subnormal", body: `{"operation":"add","a":3e-324,"b":0}`, want: 5e-324},
+		{name: "largest float is accepted", body: `{"operation":"add","a":1.7976931348623157e308,"b":0}`, want: 1.79769313486e308},
+		{name: "sqrt ignores an out-of-range b", body: `{"operation":"sqrt","a":9,"b":1e999}`, want: 3},
 		{name: "unknown fields are ignored", body: `{"operation":"add","a":1,"b":1,"extra":true}`, want: 2},
 	}
 
@@ -69,7 +74,13 @@ func TestCalculateErrors(t *testing.T) {
 		{name: "number where string expected", method: http.MethodPost, path: calculatePath, body: `{"operation":1,"a":2,"b":3}`, wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "json array instead of object", method: http.MethodPost, path: calculatePath, body: `[1,2,3]`, wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "trailing data", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":2,"b":3} extra`, wantStatus: 400, wantCode: CodeInvalidJSON},
-		{name: "number out of float64 range", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1e999,"b":3}`, wantStatus: 400, wantCode: CodeInvalidJSON},
+		{name: "number above float64 range", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1e999,"b":3}`, wantStatus: 400, wantCode: CodeInvalidOperand},
+		{name: "negative number above float64 range", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1,"b":-1e999}`, wantStatus: 400, wantCode: CodeInvalidOperand},
+		{name: "positive underflow is not a division by zero", method: http.MethodPost, path: calculatePath, body: `{"operation":"divide","a":1,"b":1e-999}`, wantStatus: 400, wantCode: CodeInvalidOperand},
+		{name: "negative underflow is not a division by zero", method: http.MethodPost, path: calculatePath, body: `{"operation":"divide","a":1,"b":-1e-999}`, wantStatus: 400, wantCode: CodeInvalidOperand},
+		{name: "underflowing a is not zero", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":1e-999,"b":0}`, wantStatus: 400, wantCode: CodeInvalidOperand},
+		{name: "below half the smallest subnormal", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":2e-324,"b":0}`, wantStatus: 400, wantCode: CodeInvalidOperand},
+		{name: "out-of-range operand checked after the operation", method: http.MethodPost, path: calculatePath, body: `{"operation":"modulo","a":1e999,"b":1}`, wantStatus: 400, wantCode: CodeInvalidOperation},
 		{name: "body too large", method: http.MethodPost, path: calculatePath, body: `{"operation":"add","a":2,"b":3,"pad":"` + strings.Repeat("x", maxBodyBytes) + `"}`, wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "whitespace-only body", method: http.MethodPost, path: calculatePath, body: " \n\t ", wantStatus: 400, wantCode: CodeInvalidJSON},
 		{name: "null body", method: http.MethodPost, path: calculatePath, body: `null`, wantStatus: 400, wantCode: CodeInvalidJSON},
@@ -248,6 +259,8 @@ func TestErrorMessages(t *testing.T) {
 		{name: "duplicate key names the key", body: `{"operation":"add","a":1,"a":5,"b":1}`, want: `Key "a" appears more than once in the request body.`},
 		{name: "missing operation says it is required", body: `{"a":1,"b":2}`, want: `Field "operation" is required. Supported operations: add, subtract, multiply, divide, power, sqrt, percent.`},
 		{name: "unknown operation echoes it", body: `{"operation":"ADD","a":1,"b":2}`, want: `Unknown operation "ADD". Supported operations: add, subtract, multiply, divide, power, sqrt, percent.`},
+		{name: "underflow says it would round to zero", body: `{"operation":"divide","a":1,"b":1e-999}`, want: `Operand "b" is too small for a 64-bit floating-point number; it would round to zero.`},
+		{name: "overflow says it is too large", body: `{"operation":"add","a":-1e999,"b":1}`, want: `Operand "a" is too large for a 64-bit floating-point number.`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -323,5 +336,45 @@ func TestMapCalculationError(t *testing.T) {
 				t.Fatalf("mapCalculationError(%v) = %d, %q, %q; want %d, %q, non-empty message", tt.err, status, code, message, tt.wantStatus, tt.wantCode)
 			}
 		})
+	}
+}
+
+func TestHasNonzeroDigit(t *testing.T) {
+	for literal, want := range map[string]bool{
+		"0": false, "-0": false, "0.000": false, "0e-999": false, "0E5": false,
+		"1e-999": true, "-1e-999": true, "0.0001": true, "2E-324": true, "10": true,
+	} {
+		if got := hasNonzeroDigit(literal); got != want {
+			t.Errorf("hasNonzeroDigit(%q) = %v, want %v", literal, got, want)
+		}
+	}
+}
+
+func TestOperandMessageFallback(t *testing.T) {
+	if got := operandMessage(errors.New("other")); got != "Operands must be finite numbers." {
+		t.Errorf("operandMessage(other) = %q", got)
+	}
+}
+
+func TestOperandRangeErrorText(t *testing.T) {
+	if got := (&operandRangeError{name: "a", tooLarge: true}).Error(); got != `operand "a" overflows float64` {
+		t.Errorf("Error() = %q", got)
+	}
+	if got := (&operandRangeError{name: "b"}).Error(); got != `operand "b" underflows float64 to zero` {
+		t.Errorf("Error() = %q", got)
+	}
+}
+
+func TestDecodeNumber(t *testing.T) {
+	if n, err := decodeNumber(json.RawMessage(`1e-999`)); err != nil || n == nil || *n != "1e-999" {
+		t.Fatalf("decodeNumber(1e-999) = %v, %v; want the lexeme kept", n, err)
+	}
+	if n, err := decodeNumber(json.RawMessage(`null`)); err != nil || n != nil {
+		t.Fatalf("decodeNumber(null) = %v, %v; want nil, nil", n, err)
+	}
+	for _, raw := range []string{`"1"`, `true`, `[1]`, `{`} {
+		if _, err := decodeNumber(json.RawMessage(raw)); err == nil {
+			t.Errorf("decodeNumber(%s) succeeded, want an error", raw)
+		}
 	}
 }

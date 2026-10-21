@@ -167,8 +167,12 @@ components:
       description: >-
         Operands must be JSON numbers. A missing `a`, or a missing `b` for a
         two-operand operation, is `INVALID_OPERAND`; a wrong type is
-        `INVALID_JSON`. Keys and the operation name match exactly (lowercase,
-        no surrounding spaces). A key that appears twice is `INVALID_JSON`.
+        `INVALID_JSON`. A literal that a 64-bit float cannot hold is also
+        `INVALID_OPERAND`: one too large (such as `1e999`, which would become
+        infinity) or a nonzero one too small (such as `1e-999`, which would
+        round to zero). `0e-999` and the smallest subnormal `5e-324` are
+        accepted. Keys and the operation name match exactly (lowercase, no
+        surrounding spaces). A key that appears twice is `INVALID_JSON`.
         Unknown fields are ignored.
 
     CalculateResponse:
@@ -273,6 +277,20 @@ components:
                 error:
                   code: INVALID_OPERAND
                   message: Operand "b" is required for "add".
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+            operandUnderflow:
+              summary: A nonzero literal that would round to zero, such as 1e-999
+              value:
+                error:
+                  code: INVALID_OPERAND
+                  message: Operand "b" is too small for a 64-bit floating-point number; it would round to zero.
+                  requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
+            operandOverflow:
+              summary: A literal too large for a 64-bit float, such as 1e999
+              value:
+                error:
+                  code: INVALID_OPERAND
+                  message: Operand "a" is too large for a 64-bit floating-point number.
                   requestId: 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e
 
     NotFound:

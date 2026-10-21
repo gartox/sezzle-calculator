@@ -2,12 +2,14 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gartox/sezzle-calculator/backend/internal/calculator"
@@ -34,10 +36,12 @@ const (
 	CodeUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
 )
 
+// calculateRequest keeps each operand as its JSON lexeme so that range
+// problems can be told apart from zero: strconv turns 1e-999 into 0 silently.
 type calculateRequest struct {
-	Operation string   `json:"operation"`
-	A         *float64 `json:"a"`
-	B         *float64 `json:"b"`
+	Operation string
+	A         *json.Number
+	B         *json.Number
 }
 
 type calculateResponse struct {
@@ -109,16 +113,24 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, "Operand \"a\" is required.")
 		return
 	}
+	a, err := parseOperand("a", *req.A)
+	if err != nil {
+		writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, operandMessage(err))
+		return
+	}
 	var b float64
 	if op != calculator.Sqrt {
 		if req.B == nil {
 			writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, fmt.Sprintf("Operand \"b\" is required for %q.", op))
 			return
 		}
-		b = *req.B
+		if b, err = parseOperand("b", *req.B); err != nil {
+			writeError(w, r, http.StatusBadRequest, CodeInvalidOperand, operandMessage(err))
+			return
+		}
 	}
 
-	result, err := calculator.Calculate(op, *req.A, b)
+	result, err := calculator.Calculate(op, a, b)
 	if err != nil {
 		status, code, message := mapCalculationError(err)
 		writeError(w, r, status, code, message)
@@ -177,17 +189,97 @@ func decodeRequest(w http.ResponseWriter, r *http.Request) (calculateRequest, er
 		return req, errors.New("unexpected data after JSON object")
 	}
 
-	targets := map[string]any{"operation": &req.Operation, "a": &req.A, "b": &req.B}
-	for name, target := range targets {
+	if raw, ok := fields["operation"]; ok {
+		if err := json.Unmarshal(raw, &req.Operation); err != nil {
+			return req, fmt.Errorf("field \"operation\": %w", err)
+		}
+	}
+	for name, target := range map[string]**json.Number{"a": &req.A, "b": &req.B} {
 		raw, ok := fields[name]
 		if !ok {
 			continue
 		}
-		if err := json.Unmarshal(raw, target); err != nil {
+		n, err := decodeNumber(raw)
+		if err != nil {
 			return req, fmt.Errorf("field %q: %w", name, err)
 		}
+		*target = n
 	}
 	return req, nil
+}
+
+// decodeNumber reads a JSON number without converting it, so 1e-999 and
+// 1e999 reach parseOperand intact. null is nil, meaning the operand is
+// missing; any other type is an error.
+func decodeNumber(raw json.RawMessage) (*json.Number, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var value any
+	if err := dec.Decode(&value); err != nil {
+		return nil, err
+	}
+	switch v := value.(type) {
+	case nil:
+		return nil, nil
+	case json.Number:
+		return &v, nil
+	default:
+		return nil, fmt.Errorf("want a number, got %T", v)
+	}
+}
+
+// operandRangeError reports a number literal that float64 cannot represent.
+type operandRangeError struct {
+	name     string
+	tooLarge bool
+}
+
+func (e *operandRangeError) Error() string {
+	if e.tooLarge {
+		return fmt.Sprintf("operand %q overflows float64", e.name)
+	}
+	return fmt.Sprintf("operand %q underflows float64 to zero", e.name)
+}
+
+// operandMessage is the explanation sent to the client for a parseOperand
+// error.
+func operandMessage(err error) string {
+	var rangeErr *operandRangeError
+	if errors.As(err, &rangeErr) {
+		return rangeErr.message()
+	}
+	return "Operands must be finite numbers."
+}
+
+// message is the explanation sent to the client.
+func (e *operandRangeError) message() string {
+	if e.tooLarge {
+		return fmt.Sprintf("Operand %q is too large for a 64-bit floating-point number.", e.name)
+	}
+	return fmt.Sprintf("Operand %q is too small for a 64-bit floating-point number; it would round to zero.", e.name)
+}
+
+// parseOperand converts a JSON number to float64 and rejects literals that
+// float64 cannot represent: a magnitude so large it would become infinity,
+// and a nonzero value so small it would round to zero. Without the second
+// check, {"operation":"divide","a":1,"b":1e-999} would be a division by zero.
+// A JSON number is always valid ParseFloat syntax, so the only error left is
+// ErrRange, which ParseFloat returns with an infinite value.
+func parseOperand(name string, n json.Number) (float64, error) {
+	value, err := strconv.ParseFloat(string(n), 64)
+	if err != nil {
+		return 0, &operandRangeError{name: name, tooLarge: true}
+	}
+	if value == 0 && hasNonzeroDigit(string(n)) {
+		return 0, &operandRangeError{name: name}
+	}
+	return value, nil
+}
+
+// hasNonzeroDigit reports whether a number literal's mantissa is not zero.
+func hasNonzeroDigit(literal string) bool {
+	mantissa, _, _ := strings.Cut(strings.ToLower(literal), "e")
+	return strings.ContainsAny(mantissa, "123456789")
 }
 
 // decodeObject reads one JSON object and returns its members by exact key.
