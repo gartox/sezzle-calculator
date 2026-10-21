@@ -1,0 +1,22 @@
+.notice {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-danger);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  text-align: right;
+}
+
+.ref {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  overflow-wrap: anywhere;
+}
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

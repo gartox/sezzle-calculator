@@ -1,0 +1,52 @@
+.wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/*
+ * Shrink to fit without measuring: --chars is the formatted length, and a
+ * tabular digit is about 0.6em wide, so 100cqi / chars / 0.6 is the largest
+ * size that fits. Short values stop at the display-xl size.
+ */
+.value {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: min(var(--font-size-display-xl), calc(100cqi / var(--chars) * 1.6));
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: var(--font-numeric-variant);
+  line-height: var(--line-height-tight);
+  text-align: right;
+  white-space: nowrap;
+}
+
+button.value {
+  cursor: copy;
+}
+
+button.value:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.feedback {
+  min-height: 1.25em;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  opacity: 0;
+  transition: opacity var(--motion-duration-normal) var(--motion-easing);
+}
+
+.feedback[data-visible='true'] {
+  opacity: 1;
+}

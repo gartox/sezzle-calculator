@@ -1,0 +1,14 @@
+.line {
+  min-height: 1.5em;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: var(--font-numeric-variant);
+  line-height: var(--line-height-normal);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+}
