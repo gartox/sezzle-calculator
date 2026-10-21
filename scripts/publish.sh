@@ -20,9 +20,10 @@
 #    distribution API directly, not of `docker manifest inspect`, whose
 #    "no such manifest" can follow an authorization error or an unexpected
 #    response. Only HTTP 200 means present, and only a 404 whose sole error
-#    code is MANIFEST_UNKNOWN means absent; anything else (401, 403, 429, 5xx,
-#    a timeout, a 404 with another code) fails before anything is pushed. The
-#    tag is pushed only when it is absent, so it is never overwritten.
+#    code is MANIFEST_UNKNOWN or NAME_UNKNOWN means absent; anything else
+#    (401, 403, 429, 5xx, a timeout, a 404 with another or mixed code) fails
+#    before anything is pushed. The tag is pushed only when it is absent, so
+#    it is never overwritten.
 # 2. Promote. Resolve the digest the commit tag points at from the registry,
 #    check that this commit is still the head of main, and only then point
 #    latest at that digest. With the workflow's concurrency group, this check
@@ -117,9 +118,10 @@ lookup() {
       if ! codes=$(grep -oE '"code"[[:space:]]*:[[:space:]]*"[A-Z_]+"' "$work/body" | sed 's/.*"\([A-Z_]*\)"$/\1/' | sort -u); then
         codes=
       fi
-      if [ "$codes" != MANIFEST_UNKNOWN ]; then
+      # NAME_UNKNOWN (the repository does not exist yet, as on the very first publication) proves absence like MANIFEST_UNKNOWN; it is only reachable with a token that was obtained successfully.
+      if [ "$codes" != MANIFEST_UNKNOWN ] && [ "$codes" != NAME_UNKNOWN ]; then
         listed=$(printf '%s' "$codes" | tr '\n' ' ')
-        fail "the registry answered 404 for $ref with error code(s) '$listed', not MANIFEST_UNKNOWN; nothing was pushed"
+        fail "the registry answered 404 for $ref with error code(s) '$listed', not MANIFEST_UNKNOWN or NAME_UNKNOWN; nothing was pushed"
       fi
       present=no
       ;;

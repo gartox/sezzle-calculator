@@ -71,6 +71,7 @@ case $url in
       server-error) printf 'upstream error' >"$output"; printf 503 ;;
       timeout) echo "curl: (28) Operation timed out after 30000 milliseconds" >&2; exit 28 ;;
       name-unknown) errors NAME_UNKNOWN "repository name not known to registry"; printf 404 ;;
+      other-404) errors BLOB_UNKNOWN "blob unknown to registry"; printf 404 ;;
       mixed-404) printf '{"errors":[{"code":"MANIFEST_UNKNOWN"},{"code":"NAME_UNKNOWN"}]}' >"$output"; printf 404 ;;
       empty-404) : >"$output"; printf 404 ;;
       no-digest) printf 'HTTP/2 200\r\ncontent-type: application/json\r\n\r\n' >"$headers"; printf 200 ;;
@@ -225,7 +226,7 @@ check "present: pushes latest" called "$pushed_latest"
 # 3. Every other lookup answer fails closed, whether or not the tag exists:
 #    nothing is tagged, pushed or promoted.
 for seed in absent present; do
-  for mode in unauthorized forbidden rate-limited server-error timeout name-unknown mixed-404 empty-404 exit-empty partial partial-200; do
+  for mode in unauthorized forbidden rate-limited server-error timeout other-404 mixed-404 empty-404 exit-empty partial partial-200; do
     new_state "lookup-$mode-$seed" "$seed"
     publish FAKE_LOOKUP="$mode"
     check "lookup $mode, tag $seed: fails" failed_run
@@ -233,6 +234,25 @@ for seed in absent present; do
     check "lookup $mode, tag $seed: says nothing was pushed" said "nothing was pushed"
   done
 done
+
+# 3b. First publication: the repository does not exist yet, so the first
+#     lookup answers 404 NAME_UNKNOWN. That proves absence: the image is
+#     pushed, looked up again, and promoted.
+new_state first-publication
+publish FAKE_LOOKUP_1=name-unknown
+check "first publication: exits 0" exited 0
+check "first publication: pushes the commit tag" called "$pushed_commit"
+check "first publication: looks the tag up again after pushing" lookups 2
+check "first publication: points latest at the published digest" called "$pointed_latest"
+check "first publication: pushes latest" called "$pushed_latest"
+
+# 3c. NAME_UNKNOWN is only reachable with a token: if the token request fails,
+#     the run stops before any lookup, whatever the registry would answer.
+new_state first-publication-no-token
+publish FAKE_TOKEN=unauthorized FAKE_LOOKUP=name-unknown
+check "first publication without a token: fails" failed_run
+check "first publication without a token: does not look anything up" lookups 0
+check "first publication without a token: pushes nothing" not_called "docker "
 
 # 4. The token request fails: no lookup, nothing pushed.
 for mode in unauthorized timeout; do
