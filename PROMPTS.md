@@ -649,6 +649,23 @@ make lint, make format-check, make test, make e2e, the Storybook tests, the shel
 
 Result: all 27 frontend findings, the three browser findings and the three backend nits are fixed. Before any code change, the new end-to-end tests ran against the old code (ba3926e) and 9 of them failed: slow answers, both mouse-then-Enter cases, AC on a hung request, the timeout, the phone sheet's focus, the full-chain history, percent in a chain, and the 2 px scroll at 375 x 667. The test that types right after load passed there once, inside the full suite. Run alone, it failed 5 times out of 5. The cause was real: the keyboard listener was attached in a passive effect, which can run after the load event, so the first keys were lost. It is now attached in a layout effect during a first commit that main.tsx makes synchronously, so it is in place before load. Enter after a click does not rely on `:focus-visible`, because Chromium can start matching it on a clicked button as soon as any key is typed. Instead, the hook records whether focus arrived by pointer or keyboard. The phone sheet first failed its own test: Tab escaped to the browser, because `inert` alone does not trap focus, so the dialog now cycles Tab itself. The token test found `--color-key-text` missing from the system dark block. Axe rejected a spoken-only name for exponent values, so those names start with the visible text. The workflow checker strips comments, anchors `if:`, requires a literal group, `cancel-in-progress: false`, every other job in `needs`, the inspect line and `exit 1`. Each of the nine new bypass fixtures exits 0 on the old checker. Counts: frontend unit 370, coverage 100% on every measure; Storybook 98, now also in CI; end-to-end 42 (13 UI on desktop, 2 on a phone project, 12 API, 15 contract); shell checks 174; backend unchanged. Verified locally and from a clean clone on Node 24.21.0 and Go 1.26.10.
 
+## 17. Last round: five review nits
+
+Tool: Claude Code.
+
+```text
+Prompt 17: last round. The frontend reviewer re-checked prompt 16 and approved with nits: all 30 previous findings are FIXED, with 2 minor and 3 nit findings left. I checked them; they are real. Append this whole message verbatim to PROMPTS.md as prompt 17 and keep the author section last.
+
+Read the "New findings" section of /Users/ghost/Proyectos/nearfinder/docs/sezzle-reviews/frontend-review-2.md and fix all five:
+1. MINOR useKeyboardKeypad: clicking the key that already has keyboard focus must clear the keyboard-focus record, so Enter then calculates. Unit test: Tab to a key, click it, type +3, Enter gives the sum.
+2. MINOR health check: add a 3 second timeout and treat an abort as Offline. Test that a never-settling fetch ends as Offline.
+3. NIT accept uppercase X like R and N.
+4. NIT keys queued behind a request that fails with a non-retryable error: replay them from the initial state (so 1 / 0 = 5 typed fast ends with 5 after the error); keep dropping them for retryable errors where the expression is kept. Test both, and state the rule in docs/design.md.
+5. NIT add the missing pinning tests: an App test where a throwing page shows the reload message, a HistoryPanel row-identity test across an insert, and make the mobile no-scroll check fail if the page scrolls.
+
+Then run make lint, make format-check, make test, the Storybook tests, make e2e, the shell tests, docker build and the smoke test on Node 24.21.0 and Go 1.26.10, and the README from a clean clone. Small commits, clear English messages, no AI markers, no remote, no push. Report the commit list and test counts, then stop.
+```
+
 ## What I did without AI
 
 To be written by the author.
