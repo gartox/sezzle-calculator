@@ -21,6 +21,21 @@ describe('HistoryPanel', () => {
     expect(onSelect).toHaveBeenCalledWith('20')
   })
 
+  it('keeps each row when a newer entry is inserted above it', () => {
+    const older = { id: 'older', expression: '1 + 1 =', result: '2' }
+    const { rerender } = render(<HistoryPanel entries={[older]} onSelect={() => {}} />)
+    const row = screen.getByRole('listitem')
+    rerender(
+      <HistoryPanel
+        entries={[{ id: 'newer', expression: '2 + 2 =', result: '4' }, older]}
+        onSelect={() => {}}
+      />,
+    )
+    const rows = screen.getAllByRole('listitem')
+    expect(rows[1]).toBe(row)
+    expect(rows[1]).toHaveTextContent('1 + 1 =')
+  })
+
   it('is a plain group beside the calculator, without Close', () => {
     render(<HistoryPanel entries={[]} onSelect={() => {}} onClose={() => {}} />)
     expect(screen.getByText('No calculations yet.')).toBeInTheDocument()

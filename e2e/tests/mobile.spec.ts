@@ -47,9 +47,14 @@ test('the history sheet is a modal dialog that takes focus and gives it back', a
 
 test('the phone layout does not scroll', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByText('Ready', { exact: true })).toBeVisible()
   const { scrollHeight, innerHeight } = await page.evaluate(() => ({
     scrollHeight: document.documentElement.scrollHeight,
     innerHeight: window.innerHeight,
   }))
   expect(scrollHeight).toBeLessThanOrEqual(innerHeight)
+  // A scroll request must leave the page where it is.
+  await page.mouse.wheel(0, 400)
+  await page.evaluate(() => window.scrollTo(0, 400))
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
 })
