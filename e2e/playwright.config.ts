@@ -14,7 +14,11 @@ export default defineConfig({
     baseURL,
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /mobile\.spec\.ts/ },
+    // A phone: touch, a mobile user agent, and the history as a sheet.
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, testMatch: /mobile\.spec\.ts/ },
+  ],
   webServer: {
     // Builds the frontend (when needed) and the Go binary, then serves both.
     command: 'sh scripts/start-stack.sh',
