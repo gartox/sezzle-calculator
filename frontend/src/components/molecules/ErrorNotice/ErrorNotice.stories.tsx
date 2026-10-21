@@ -48,7 +48,7 @@ export const CopyRef: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(
-      canvas.getByRole('button', { name: /^Ref 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e/ }),
+      canvas.getByRole('button', { name: /full ID 3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e/ }),
     )
     await expect(args.writeClipboard).toHaveBeenCalledWith('3f9c2a7d41e84b0c9a5d6e1f2b3c4d5e')
     await expect(await canvas.findAllByText('Copied')).toHaveLength(2)

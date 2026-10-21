@@ -17,8 +17,9 @@ interface ErrorNoticeProps {
 /**
  * Replaces the value when a calculation fails. It is an alert, so screen
  * readers announce it at once. The Ref shows the first characters of the
- * request ID; activating it copies the whole ID for support, and its
- * accessible name carries the whole ID too.
+ * request ID; activating it copies the whole ID for support. Its accessible
+ * name starts with the visible text, so voice control matches it, and then
+ * carries the whole ID.
  */
 function ErrorNotice({ message, requestId, writeClipboard = writeToClipboard }: ErrorNoticeProps) {
   const { feedback, message: copyMessage, copy } = useCopyFeedback(writeClipboard)
@@ -31,7 +32,7 @@ function ErrorNotice({ message, requestId, writeClipboard = writeToClipboard }: 
             type="button"
             className={styles.ref}
             onClick={() => copy(requestId)}
-            aria-label={`Ref ${requestId}, copy`}
+            aria-label={`Ref ${requestId.slice(0, SHORT_REF)}, full ID ${requestId}, copy`}
           >
             Ref <span className={styles.code}>{requestId.slice(0, SHORT_REF)}</span>
           </button>

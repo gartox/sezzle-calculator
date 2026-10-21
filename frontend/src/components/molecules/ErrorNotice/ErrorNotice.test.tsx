@@ -24,7 +24,7 @@ describe('ErrorNotice', () => {
       />,
     )
 
-    const ref = screen.getByRole('button', { name: `Ref ${ID}, copy` })
+    const ref = screen.getByRole('button', { name: `Ref 3f9c2a7d, full ID ${ID}, copy` })
     await userEvent.click(ref)
     ref.focus()
     await userEvent.keyboard('{Enter}')
