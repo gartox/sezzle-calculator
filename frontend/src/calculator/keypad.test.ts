@@ -489,6 +489,7 @@ describe('actionForKey', () => {
     ['-', { type: 'minus' }],
     ['*', { type: 'operator', operator: 'multiply' }],
     ['x', { type: 'operator', operator: 'multiply' }],
+    ['X', { type: 'operator', operator: 'multiply' }],
     ['/', { type: 'operator', operator: 'divide' }],
     ['^', { type: 'operator', operator: 'power' }],
     ['%', { type: 'operator', operator: 'percent' }],

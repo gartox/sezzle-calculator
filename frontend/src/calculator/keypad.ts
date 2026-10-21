@@ -525,6 +525,7 @@ export function actionForKey(key: string): KeypadAction | null {
       return { type: 'minus' }
     case '*':
     case 'x':
+    case 'X':
       return { type: 'operator', operator: 'multiply' }
     case '/':
       return { type: 'operator', operator: 'divide' }
