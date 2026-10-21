@@ -178,8 +178,9 @@ jobs:
   # main and only after every other job has passed. It needs no secret beyond
   # the workflow token. scripts/publish.sh does the work and is covered by
   # scripts/publish_test.sh: it asks the registry's distribution API whether
-  # the commit tag exists and pushes only on a 404 MANIFEST_UNKNOWN (any other
-  # answer fails the job), and points latest at the published digest only
+  # the commit tag exists and pushes only on a 404 MANIFEST_UNKNOWN, or
+  # NAME_UNKNOWN when the repository does not exist yet (any other answer
+  # fails the job), and points latest at the published digest only
   # while this commit is still the head of main. Ordering between concurrent
   # runs is enforced by the concurrency group, which runs publishes on main one
   # at a time, together with that head check. A rerun after a failed promotion
