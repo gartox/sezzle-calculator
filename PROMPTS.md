@@ -666,6 +666,8 @@ Read the "New findings" section of /Users/ghost/Proyectos/nearfinder/docs/sezzle
 Then run make lint, make format-check, make test, the Storybook tests, make e2e, the shell tests, docker build and the smoke test on Node 24.21.0 and Go 1.26.10, and the README from a clean clone. Small commits, clear English messages, no AI markers, no remote, no push. Report the commit list and test counts, then stop.
 ```
 
+Result: all five are fixed, each in its own commit with a test that fails when the fix is reverted (checked by reverting each one). A click on the key that Tab reached now clears the keyboard-focus record, so Tab to 2, click it, then +3 Enter gives 15. The health check races its fetch against a 3 second timer that also aborts it, so a never-settling fetch reads Offline. X works like x. Keys typed behind an arithmetic error are replayed as the next calculation (1 ÷ 0 = 5 ends with 5), while keys behind a failed request are still dropped because the expression is kept for a retry; docs/design.md states the rule. New pinning tests: an App test with a page that throws, a HistoryPanel test that a row keeps its DOM node when a newer entry is inserted above it, and a phone no-scroll test that also tries to scroll. With the current layout the old 100vh styles no longer overflow at 375 x 667, so that test was shown to fail by forcing 10 px of overflow (677 > 667). Counts: frontend unit 377 at 100% coverage, Storybook 98, end-to-end 42, shell checks 174, backend unchanged. Verified locally and from a clean clone on Node 24.21.0 and Go 1.26.10, including docker build and the smoke test.
+
 ## What I did without AI
 
 To be written by the author.
