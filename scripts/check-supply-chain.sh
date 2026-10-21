@@ -13,6 +13,8 @@ set -eu
 
 root=${1:-.}
 problems=0
+list=$(mktemp)
+trap 'rm -f "$list"' EXIT
 
 report() {
   echo "supply chain: $1" >&2
@@ -33,12 +35,15 @@ done
 # 2. Base images pinned by digest. Globbing is off while lines are split into
 #    words, so a "*" in a Dockerfile cannot expand to file names.
 set -f
-for dockerfile in $(find "$root" -name 'Dockerfile*' -not -path '*/node_modules/*' -not -path '*/.git/*'); do
+find "$root" -name 'Dockerfile*' -not -path '*/node_modules/*' -not -path '*/.git/*' >"$list"
+while IFS= read -r dockerfile; do
   stages=' scratch '
   line_number=0
   while IFS= read -r line || [ -n "$line" ]; do
     line_number=$((line_number + 1))
-    # FROM [--platform=...] IMAGE [AS name], case-insensitive keywords.
+    # FROM [--platform=...] IMAGE [AS name], case-insensitive keywords. The
+    # line is split into words on purpose; globbing is off.
+    # shellcheck disable=SC2086
     set -- $line
     [ $# -ge 2 ] || continue
     keyword=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')
@@ -54,7 +59,7 @@ for dockerfile in $(find "$root" -name 'Dockerfile*' -not -path '*/node_modules/
       report "${dockerfile#"$root"/}:$line_number: FROM $image is not pinned by digest"
     fi
   done <"$dockerfile"
-done
+done <"$list"
 set +f
 
 # 3. No floating tool versions. The pattern is spelled so it does not match
