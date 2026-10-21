@@ -159,12 +159,16 @@ jobs:
 
   # Publishes the tested image to GitHub Container Registry, only for pushes to
   # main and only after every other job has passed. It needs no secret beyond
-  # the workflow token. Runs on main are serialized, the commit tag is never
-  # overwritten, and latest moves only if this commit is still the head of
-  # main, so an older run that finishes late cannot roll latest back.
+  # the workflow token. scripts/publish.sh does the work and is covered by
+  # scripts/publish_test.sh: the commit tag is pushed only after the registry
+  # says it does not exist (any other lookup error fails the job), and latest
+  # is pointed at the published digest only while this commit is still the
+  # head of main. Together with the concurrency group, which runs publishes on
+  # main one at a time, that check keeps an older run from moving latest
+  # backwards. A rerun after a failed promotion finishes the promotion.
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend, e2e, security, image]
+    needs: [backend, frontend, e2e, security, scripts, image]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -172,9 +176,8 @@ jobs:
     concurrency:
       group: publish-main
       cancel-in-progress: false
-    env:
-      IMAGE: ghcr.io/gartox/sezzle-calculator
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: image
@@ -188,30 +191,7 @@ jobs:
           fi
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Push the commit tag
-        id: commit
-        run: |
-          ref="$IMAGE:${{ github.sha }}"
-          if docker manifest inspect "$ref" >/dev/null 2>&1; then
-            echo "$ref is already published; commit tags are never overwritten."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          docker tag sezzle-calculator:ci "$ref"
-          docker push "$ref"
-          digest="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" | grep "^$IMAGE@")"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "Published \`$ref\` as \`$digest\`." >> "$GITHUB_STEP_SUMMARY"
-      - name: Move latest if this commit is still the head of main
-        if: steps.commit.outputs.skip != 'true'
+      - name: Publish the commit tag and promote latest
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          head="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
-          if [ "$head" != "${{ github.sha }}" ]; then
-            echo "main is now at $head; leaving latest where it is."
-            exit 0
-          fi
-          docker tag sezzle-calculator:ci "$IMAGE:latest"
-          docker push "$IMAGE:latest"
-          echo "Moved \`latest\` to \`${{ steps.commit.outputs.digest }}\`." >> "$GITHUB_STEP_SUMMARY"
+        run: scripts/publish.sh sezzle-calculator:ci "${{ github.sha }}" ghcr.io/gartox/sezzle-calculator
