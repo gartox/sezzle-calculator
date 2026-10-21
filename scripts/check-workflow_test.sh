@@ -27,7 +27,8 @@ edit() {
       i = index($0, old)
       if (i) seen++
       if (i && mode == "delete") next
-      if (i && (mode == "replace" || (mode == "replace-second" && seen == 2))) $0 = substr($0, 1, i - 1) new substr($0, i + length(old))
+      nth = (mode == "replace-second") ? 2 : (mode == "replace-third") ? 3 : 0
+      if (i && (mode == "replace" || (nth && seen == nth))) $0 = substr($0, 1, i - 1) new substr($0, i + length(old))
       print
       if (i && mode == "after") print new
     }
@@ -73,10 +74,32 @@ violation "concurrency group removed" "publish must have a concurrency group" \
   delete "group: publish-main"
 violation "concurrency removed entirely" "publish must have a concurrency group" \
   replace "    concurrency:" "    timeout-minutes: 10"
-violation "publish can be cancelled" "publish must not cancel a publish in progress" \
+violation "publish can be cancelled" "publish must set cancel-in-progress: false" \
   replace "cancel-in-progress: false" "cancel-in-progress: true"
-violation "publish does not need the image job" "publish must need the image job" \
+violation "publish does not need the image job" "publish must need every other job (needs: [a, b, ...]); missing: image" \
   replace ", scripts, image]" ", scripts]"
+
+# Bypasses of a text match: an expression, a comment, a tautology.
+violation "concurrency group keyed by commit" "publish must have a concurrency group with a literal name" \
+  replace "group: publish-main" "group: publish-\${{ github.sha }}"
+violation "cancel-in-progress from an expression" "publish must set cancel-in-progress: false" \
+  replace "cancel-in-progress: false" "cancel-in-progress: \${{ true }}"
+violation "publish condition commented out" "publish must run only for pushes to main" \
+  replace "    if: github.event_name" "    # if: github.event_name"
+violation "publish condition replaced, the original kept in a comment" "publish must run only for pushes to main" \
+  replace "    if: github.event_name == 'push' && github.ref == 'refs/heads/main'" \
+  "    if: always()\n    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+violation "publish needs only the image job" "missing: backend frontend e2e security scripts" \
+  replace "needs: [backend, frontend, e2e, security, scripts, image]" "needs: [image]"
+violation "a new job that publish does not need" "missing: docs" \
+  after "jobs:" "  docs:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true"
+violation "loaded ID copied from the expected value" "publish must read the loaded image ID with docker image inspect" \
+  replace "loaded=\"\$(docker image inspect --format '{{.Id}}' sezzle-calculator:ci)\"" \
+  "loaded=\"\${{ needs.image.outputs.image-id }}\""
+violation "a mismatched image does not stop the job" "publish must exit 1 when the loaded image is not the tested image ID" \
+  replace-third "exit 1" ":"
+violation "docker load moved into a comment" "publish must download and load the tested image artifact" \
+  replace "gunzip -c image.tar.gz | docker load" "true # gunzip -c image.tar.gz | docker load"
 violation "image job does not build" "the image job must build the image" \
   replace "docker build -t sezzle-calculator:ci ." "docker pull sezzle-calculator:ci"
 violation "image job does not smoke test" "the image job must smoke test the image" \
