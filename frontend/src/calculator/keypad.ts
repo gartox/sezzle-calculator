@@ -286,9 +286,10 @@ export function historyEntryFor(
   pending: PendingCalculation,
   result: number,
   hadOperator: boolean,
+  format: (raw: string) => string = String,
 ): { expression: string; result: string } | null {
   if (pending.then === 'equals' || (pending.then === 'sqrt' && !hadOperator)) {
-    return { expression: `${describe(pending)} =`, result: String(result) }
+    return { expression: `${describe(pending, format)} =`, result: String(result) }
   }
   return null
 }
