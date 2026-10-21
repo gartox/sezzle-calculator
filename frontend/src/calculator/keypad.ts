@@ -422,10 +422,13 @@ function fail(state: KeypadState, error: CalculationError): KeypadState {
       ? [{ kind: 'sqrt', raw: state.entry }]
       : stepTokens(state, pending.then === 'operand')
   if (isRetryable(error)) {
-    // Keep the expression so equals can send it again.
+    // Keep the expression so equals can send it again; keys typed meanwhile
+    // were meant for that expression, so they are dropped.
     return { ...state, pending: null, queue: [], error, retry: pending, last }
   }
-  return { ...initialKeypadState, error, last }
+  // The calculation is over. Keys typed meanwhile start the next one, as on
+  // a handheld: 1 ÷ 0 = 5 typed fast ends with 5.
+  return state.queue.reduce(keypadReducer, { ...initialKeypadState, error, last })
 }
 
 // Selectors.

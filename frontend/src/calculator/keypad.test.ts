@@ -333,7 +333,16 @@ const CASES: Array<[name: string, steps: string, expected: Expectation]> = [
       active: null,
     },
   ],
-  ['an arithmetic error drops the waiting keys', '1 ÷ 0 = 7 err', { error: true, queued: 0 }],
+  [
+    'keys typed behind an arithmetic error start the next calculation',
+    '1 ÷ 0 = 5 err',
+    { error: false, entry: '5', expression: '', queued: 0 },
+  ],
+  [
+    'an equals typed behind an arithmetic error leaves the error shown',
+    '1 ÷ 0 = = err',
+    { error: true, expression: '1 ÷ 0 =', queued: 0 },
+  ],
   [
     'a digit after an error starts fresh',
     '1 ÷ 0 = err 7',
