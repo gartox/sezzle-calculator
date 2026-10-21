@@ -16,6 +16,9 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Calculator' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'equals' })).toBeInTheDocument()
     expect(await screen.findByText('Ready')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/health', { cache: 'no-store' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/health',
+      expect.objectContaining({ cache: 'no-store' }),
+    )
   })
 })
