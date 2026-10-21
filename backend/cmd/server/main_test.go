@@ -19,7 +19,8 @@ func TestSpaHandler(t *testing.T) {
 	// A file next to the static directory must never be reachable.
 	mustWrite(t, filepath.Join(filepath.Dir(dir), "outside.txt"), "secret")
 
-	handler := spaHandler(dir)
+	handler, closeRoot := mustStaticHandler(t, dir)
+	defer closeRoot()
 
 	tests := []struct {
 		name     string
@@ -150,5 +151,77 @@ func TestRateLimitFromEnv(t *testing.T) {
 		if !tt.wantErr && (cfg.RPS != tt.wantRPS || cfg.Burst != tt.wantBurst || cfg.MaxClients != tt.wantMax || !cfg.TrustProxy) {
 			t.Fatalf("rps=%q burst=%q: got %+v", tt.rps, tt.burst, cfg)
 		}
+	}
+}
+
+func TestStaticFilesDoNotFollowSymlinksOutside(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "dist")
+	mustWrite(t, filepath.Join(dir, "index.html"), "<h1>index</h1>")
+	mustWrite(t, filepath.Join(dir, "assets", "app.js"), "console.log(1)")
+	mustWrite(t, filepath.Join(parent, "secret.txt"), "secret")
+	mustWrite(t, filepath.Join(parent, "private", "key.pem"), "secret")
+	mustSymlink(t, filepath.Join(parent, "secret.txt"), filepath.Join(dir, "leak.txt"))
+	mustSymlink(t, filepath.Join(parent, "secret.txt"), filepath.Join(dir, "assets", "leak.js"))
+	mustSymlink(t, filepath.Join(parent, "private"), filepath.Join(dir, "private"))
+	// A relative link that stays inside the directory is fine; an absolute
+	// one is refused even when it points inside, because os.Root does not
+	// resolve absolute link targets.
+	mustSymlink(t, "app.js", filepath.Join(dir, "assets", "alias.js"))
+	mustSymlink(t, filepath.Join(dir, "assets", "app.js"), filepath.Join(dir, "assets", "absolute.js"))
+
+	handler, closeRoot := mustStaticHandler(t, dir)
+	defer closeRoot()
+
+	tests := []struct {
+		path     string
+		wantCode int
+		wantBody string
+	}{
+		{path: "/leak.txt", wantCode: 200, wantBody: "<h1>index</h1>"},
+		{path: "/assets/leak.js", wantCode: 404, wantBody: "404 page not found"},
+		{path: "/private/key.pem", wantCode: 200, wantBody: "<h1>index</h1>"},
+		{path: "/assets/alias.js", wantCode: 200, wantBody: "console.log(1)"},
+		{path: "/assets/absolute.js", wantCode: 404, wantBody: "404 page not found"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			body := strings.TrimSpace(rec.Body.String())
+			if strings.Contains(body, "secret") {
+				t.Fatalf("symlink escaped the static directory: %q", body)
+			}
+			if rec.Code != tt.wantCode || body != tt.wantBody {
+				t.Fatalf("status %d body %q, want %d %q", rec.Code, body, tt.wantCode, tt.wantBody)
+			}
+		})
+	}
+}
+
+func mustSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// mustStaticHandler opens dir as the server does, through an os.Root.
+func mustStaticHandler(t *testing.T, dir string) (http.Handler, func()) {
+	t.Helper()
+	handler, closeRoot, err := staticHandler(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler, func() {
+		if err := closeRoot(); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func TestStaticHandlerNeedsADirectory(t *testing.T) {
+	if _, _, err := staticHandler(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Fatal("staticHandler(missing) succeeded, want an error")
 	}
 }

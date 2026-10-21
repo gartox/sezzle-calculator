@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"math"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -59,7 +59,12 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", httpapi.NewHandler(limiter))
 	if isDir(staticDir) {
-		mux.Handle("/", spaHandler(staticDir))
+		static, closeRoot, err := staticHandler(staticDir)
+		if err != nil {
+			return err
+		}
+		defer closeRoot()
+		mux.Handle("/", static)
 		slog.Info("serving frontend", "dir", staticDir)
 	} else {
 		slog.Info("frontend build not found, serving API only", "dir", staticDir)
@@ -103,17 +108,30 @@ func run() error {
 	return nil
 }
 
-// spaHandler serves files from dir. Paths that do not exist fall back to
+// staticHandler serves the built frontend in dir. Every lookup goes through
+// an os.Root, so neither ".." nor a symlink can reach a file outside dir: a
+// link that points outside fails to open instead of being followed. Call the
+// returned function to release the root on shutdown.
+func staticHandler(dir string) (http.Handler, func() error, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	return spaHandler(root.FS()), root.Close, nil
+}
+
+// spaHandler serves files from fsys. Paths that do not exist fall back to
 // index.html so client-side routes resolve to the application, except under
 // /assets/: a missing hashed file must be a 404, or a browser asking for an old
 // bundle after a deploy would cache index.html as JavaScript for a year.
-// Directories other than the root are never listed.
-func spaHandler(dir string) http.Handler {
-	files := http.FileServer(http.Dir(dir))
-	index := filepath.Join(dir, "index.html")
+// Directories other than the root are never listed, and anything fsys
+// refuses to open, such as a symlink out of the root, is treated as missing.
+func spaHandler(fsys fs.FS) http.Handler {
+	files := http.FileServerFS(fsys)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clean := path.Clean("/" + r.URL.Path)
-		info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(clean)))
+		name := strings.TrimPrefix(clean, "/")
+		info, err := fs.Stat(fsys, name)
 		switch {
 		case err == nil && !info.IsDir(), clean == "/":
 			files.ServeHTTP(w, r)
@@ -122,7 +140,7 @@ func spaHandler(dir string) http.Handler {
 			w.Header().Set("Cache-Control", cacheNone)
 			http.NotFound(w, r)
 		default:
-			http.ServeFile(w, r, index)
+			http.ServeFileFS(w, r, fsys, "index.html")
 		}
 	})
 }
