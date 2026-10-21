@@ -67,6 +67,10 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+      # Every story runs in Chromium with its play function and an axe check in
+      # both themes, so a contrast or interaction regression fails here.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test-storybook
       - run: npm run build
 
   e2e:
