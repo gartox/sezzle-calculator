@@ -668,6 +668,31 @@ Then run make lint, make format-check, make test, the Storybook tests, make e2e,
 
 Result: all five are fixed, each in its own commit with a test that fails when the fix is reverted (checked by reverting each one). A click on the key that Tab reached now clears the keyboard-focus record, so Tab to 2, click it, then +3 Enter gives 15. The health check races its fetch against a 3 second timer that also aborts it, so a never-settling fetch reads Offline. X works like x. Keys typed behind an arithmetic error are replayed as the next calculation (1 ÷ 0 = 5 ends with 5), while keys behind a failed request are still dropped because the expression is kept for a retry; docs/design.md states the rule. New pinning tests: an App test with a page that throws, a HistoryPanel test that a row keeps its DOM node when a newer entry is inserted above it, and a phone no-scroll test that also tries to scroll. With the current layout the old 100vh styles no longer overflow at 375 x 667, so that test was shown to fail by forcing 10 px of overflow (677 > 667). Counts: frontend unit 377 at 100% coverage, Storybook 98, end-to-end 42, shell checks 174, backend unchanged. Verified locally and from a clean clone on Node 24.21.0 and Go 1.26.10, including docker build and the smoke test.
 
-## What I did without AI
+## How I directed the work
 
-To be written by the author.
+I built this with Claude Code in two sessions with separate roles: one implemented, the other checked every step and wrote the next prompt. Codex, and later a fresh reviewer agent, reviewed the result. My part was the one a tech lead has on a team: set the order, make the calls, and not move on until each step was proven.
+
+**The order I set**
+
+1. Contract first. The endpoint, the error codes with their status, and what percent, square root and power mean were written down before any code. Later I asked whether that contract existed anywhere but prose, which is why there is an OpenAPI document that CI checks against the handler and that the frontend types are generated from.
+2. Backend finished before any visual work. Every step was rerun from a clean clone: lint, type checks, unit tests, end to end tests against the real binary and the container, and the README examples compared byte for byte. My rule was simple: it only works if it works from scratch on a machine that is not mine.
+3. Review by someone who did not write the code. I asked Codex to review it the way the CTO of a payments company would, and kept the backend in review until it approved: three rounds with Codex, and a fourth with a fresh reviewer agent when Codex ran out of quota. The frontend went through the same loop twice. Every finding was reproduced before it was fixed, and every fix has a test that fails if it is reverted.
+4. Then the interface. I tested the first version by hand and rejected it: a form with two inputs and a select is correct, but it is not a calculator. I asked for it to be rebuilt as a product, starting from how the best calculators handle layout, feedback and errors, with an atomic design system and Storybook, on top of a backend that was already done.
+
+**Decisions that were mine**
+
+- Go with only the standard library, because you prefer Go, even though my recent work is mostly TypeScript and Node.
+- End to end tests with Playwright for both the browser and the API instead of a separate Postman collection, plus a plain .http file you can run from your editor.
+- Security sized for a payments company. I asked what actually protected the endpoint beyond validation, which led to security headers, rate limiting per client, request IDs, and dependency and image scanning in CI. Node 24 as the minimum version.
+- oxlint, the linter Vite ships with, over ESLint, with Prettier for formatting, both enforced on every pull request.
+- No authentication or API keys. A calculator with no user data does not need them, and they would only get in your way while reviewing.
+- No tool attribution in commits. This file is the only place the tools are named.
+
+**On scope**
+
+You suggested two to four hours, and this took longer, by choice. The extras listed in the Scope section of the README are what I would expect before shipping anything that touches money, and I wanted you to see how I work, not only what fits in an afternoon.
+
+**With more time**
+
+- A decimal mode with arbitrary precision, to show how the same API would behave for money.
+- Visual regression tests on the Storybook stories, and a preview deployment for every pull request.
